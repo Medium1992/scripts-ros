@@ -114,27 +114,10 @@ $mHdr "DNSProxy"
     $mSay "  [ !! ] DNSProxy did not reach running state within 600s"
 }
 
-# Pointing /ip dns at a container is only safe with a watchdog: if it stops and
-# the router keeps querying it, the whole network loses DNS. Only one container
-# may own the resolver -- two watchdogs would each see the other value as wrong
-# and rewrite it every ten seconds.
-$mSay ""
-:local current [$mStateGet "resolver"]
-:local take false
-:if ([:len $current] > 0 and $current != "DNSProxy") do={
-    $mSay ("  [ !! ] " . $current . " currently owns the router resolver.")
-    :set take [$mYesNo prompt=("Take it over from " . $current . "?")]
-} else={
-    :set take [$mYesNo prompt="Use DNSProxy as the router resolver (with automatic fallback)?"]
-}
-
-:if ($take) do={
-    $mStateSet key="resolver" value="DNSProxy"
-    $mStateSet key="resolver_addr" value="192.168.255.10"
-    $mRun "modules/45-resolver.rsc"
-} else={
-    $mOk "resolver left as is"
-    $mSay "  forward selected domains to it instead:"
-    $mSay "  /ip/dns/static/add name=<domain> type=FWD forward-to=DNSProxy match-subdomain=yes"
-}
+# Offering the resolver role is one shared decision, made in 45-resolver so the
+# rules and the watchdog exist in exactly one place. Declining is fine and
+# leaves /ip dns untouched.
+:global mResolverCandidate "DNSProxy"
+:global mResolverAddr "192.168.255.10"
+$mRun "modules/45-resolver.rsc"
 }
