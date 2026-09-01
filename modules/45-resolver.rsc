@@ -23,11 +23,16 @@
 :global mFetch
 :global mStateGet
 :global mStateSet
+:global mFallbackLoad
+:global mFallbackApply
+:global mFallbackDesc
 :global mFallbackServers
 :global mResolverCandidate
 :global mResolverAddr
 
 $mHdr "Router resolver"
+
+$mFallbackLoad
 
 :local owner [$mStateGet "resolver"]
 :local cand ""
@@ -64,7 +69,7 @@ $mHdr "Router resolver"
             }
         } else={
             $mSay ("  " . $cand . " can become the routers resolver, with automatic")
-            $mSay ("  fallback to " . $mFallbackServers . " whenever it is not running.")
+            $mSay ("  fallback to " . [$mFallbackDesc] . " whenever it is not running.")
             $mSay "  Answering no leaves /ip dns untouched -- the container still works,"
             $mSay "  you just send it the domains you choose instead of everything."
             :if ([$mYesNo prompt=("Make " . $cand . " the router resolver?")]) do={
@@ -97,10 +102,8 @@ $mStateSet key="resolver_addr" value=$wantedAddr
         # Only correct what the watchdog itself set. If the operator never let
         # a container take the resolver, /ip dns is theirs and stays theirs.
         :if ([:len $owner] > 0) do={
-            /ip/dns/set use-doh-server="" verify-doh-cert=no
-            /ip/dns/set servers=$mFallbackServers
-            /ip/dns/cache/flush
-            $mOk ("resolver set to " . $mFallbackServers)
+            $mFallbackApply
+            $mOk ("resolver set to " . [$mFallbackDesc])
         } else={
             $mOk "/ip dns left untouched"
         }
@@ -140,7 +143,7 @@ $mStateSet key="resolver_addr" value=$wantedAddr
                 $mOk ($wanted . " is not running yet, resolver stays on " . [/ip/dns/get servers])
                 $mSay "  it will switch over within 10s of the container starting"
             }
-            $mSay ("  fallback when it stops: " . $mFallbackServers)
+            $mSay ("  fallback when it stops: " . [$mFallbackDesc])
         } do={ $mErr "watchdog install" $e }
     }
 }

@@ -10,6 +10,9 @@
 :global mSay
 :global mErr
 :global mYesNo
+:global mFallbackLoad
+:global mFallbackApply
+:global mFallbackDesc
 :global mStateGet
 :global mStateSet
 :global mRun
