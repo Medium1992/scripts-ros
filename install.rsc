@@ -215,25 +215,29 @@ $mReloadStatus
 # ==================================================================== menu
 # Menu keys are the module numbers themselves. Typing 41 is no harder than
 # typing 5 and it removes the guesswork about which file a row runs.
+# Rows are numbered by module, which is useful when reading the repository and
+# useless when you are staring at a prompt. So the position is printed first
+# and both are accepted: on a menu of eight rows, "4" and "30" mean the same
+# thing and cannot collide, because no position ever reaches 10.
 :global mDraw do={
     :global mMenu
+    :global mPad
+    :global mIndex
+    :set mIndex [:toarray ""]
     :put ""
     :put "=============================================="
+    :local i 1
     :foreach k,v in=$mMenu do={
-        :global mPad
-        :put (" " . [$mPad $k 3] . ($v->"state") . " " . [$mPad ($v->"title") 21] . ($v->"detail"))
+        :set mIndex ($mIndex, $k)
+        :put (" " . [$mPad ($i . ")") 4] . ($v->"state") . " " . [$mPad ($v->"title") 20] . ($v->"detail"))
+        :set i ($i + 1)
     }
     :put ""
-    :put "  a   [    ] install everything"
-    :put "  s   [    ] full status report"
-    :put "  x   [    ] remove everything"
-    :put "  q   [    ] quit"
+    :put "  a   install everything        s   status report"
+    :put "  x   remove everything         q   quit"
     :put "=============================================="
 }
 
-# Picking a row asks what to do with it. Install and remove are the same
-# choice at the same place, so removing one piece never means hunting for a
-# separate uninstall flow -- and never means removing more than that piece.
 :global mAction do={
     :global mRun
     :put ""
@@ -254,7 +258,7 @@ $mReloadStatus
 :local running true
 :while ($running) do={
     $mDraw
-    :put "select:"
+    :put "choose a row number (or a / s / x / q):"
     :local pick [/terminal ask]
 
     :if ($pick = "q") do={
@@ -273,9 +277,19 @@ $mReloadStatus
                     }
                     $mReloadStatus
                 } else={
-                    :local item ($mMenu->$pick)
+                    # Accept the printed position as well as the module
+                    # number, so nobody has to know that row 4 is file 30.
+                    :global mIndex
+                    :local key $pick
+                    :local num [:tonum $pick]
+                    :if ([:typeof $num] = "num") do={
+                        :if ($num >= 1 and $num <= [:len $mIndex]) do={
+                            :set key ($mIndex->($num - 1))
+                        }
+                    }
+                    :local item ($mMenu->$key)
                     :if ([:typeof $item] = "nothing") do={
-                        :put "  unknown choice"
+                        :put ("  there is no row " . $pick . " -- type a number from the left column, or a/s/x/q")
                     } else={
                         :if ([$mAction item=$item]) do={ $mReloadStatus }
                     }
