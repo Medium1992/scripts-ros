@@ -40,6 +40,8 @@ $mShow label="forwarders" value=[:len [/ip/dns/forwarders/find]]
 $mShow label="allow-remote" value=[/ip/dns/get allow-remote-requests]
 $mShow label="static entries" value=[:len [/ip/dns/static/find]]
 $mShow label="cache used KiB" value=[/ip/dns/get cache-used]
+$mShow label="servers" value=[/ip/dns/get servers]
+$mShow label="doh server" value=[/ip/dns/get use-doh-server]
 
 $mHdr "Firewall and routing"
 $mShow label="mangle rules" value=[:len [/ip/firewall/mangle/find]]
