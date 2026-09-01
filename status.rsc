@@ -103,9 +103,12 @@
 # In container-only mode the mangle rules are absent by design, so counting
 # them as missing would show a permanent [ ~~ ] on a correct install.
 :if ($mhMode = "container") do={
+    # Neither the mangle rules nor the group environment belong to this mode,
+    # so counting them as missing would leave a correct install showing [ ~~ ]
+    # forever.
     :set mhHave 0
     :if ($mhVeth > 0) do={ :set mhHave ($mhHave + 2) }
-    :if ($mhEnv >= 10) do={ :set mhHave ($mhHave + 2) }
+    :if ($mhTable > 0) do={ :set mhHave ($mhHave + 2) }
     :if ($mhRun > 0) do={ :set mhHave ($mhHave + 1) }
 }
 

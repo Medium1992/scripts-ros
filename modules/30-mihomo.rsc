@@ -3,13 +3,18 @@
 #
 # Two very different things were bundled under one name before:
 #
-#   full        the container PLUS the traffic redirection -- mangle marks,
-#               a dedicated routing table, fake-ip routes, address-lists and
-#               static DNS. Everything from the LAN goes through the proxy by
-#               policy. This is what script21.rsc always did, with no choice.
-#   container   the container and its link network only. Nothing on the router
-#               is redirected. You decide what reaches it, by pointing DNS FWD
-#               rules or your own firewall rules at it.
+#   container   a working, reachable proxy: link network, its own routing
+#               table, the default route into it, the private blackholes and
+#               the fake-ip route. Nothing is redirected into it. You decide
+#               what arrives, with a DNS FWD rule or your own marking.
+#   full        all of that plus the policy that fills it: mangle marks,
+#               the group and geosite environment, static DNS and the firewall
+#               address-lists. Everything from the LAN goes through the proxy.
+#               This is what script21.rsc always did, with no choice.
+#
+# The line between them is what decides which traffic arrives, not what makes
+# the container usable. A routing table nobody can reach is not a lighter
+# install, it is a broken one.
 #
 # The second case is not exotic. Someone who already has their own mangle
 # rules, or who wants the proxy for a handful of domains, or who is just trying
@@ -34,8 +39,8 @@ $mSay ""
 :if ([:len $mode] > 0) do={
     $mSay ("  this router is currently set up as: " . $mode)
 }
-$mSay "   1) full      container + traffic redirection for the whole LAN"
-$mSay "   2) container container and link network only, you route to it yourself"
+$mSay "   1) full      container + redirection policy for the whole LAN"
+$mSay "   2) container working proxy with its routes, nothing redirected yet"
 $mSay "   3) back"
 $mSay "  choose:"
 :local pick [$mAsk default=""]
@@ -56,11 +61,13 @@ $mOk ("install mode: " . $mode)
     $mRun "modules/20-storage.rsc"
 }
 
-# 32-mihomo-mangle is the redirection. It is the only difference between the
-# two modes, and it is the whole difference.
+# Policy is the difference: the marking rules and the group environment that
+# tells mihomo what to do with what. Everything else is the container itself.
 :local steps {"modules/31-mihomo-net.rsc"}
-:if ($mode = "full") do={ :set steps ($steps, "modules/32-mihomo-mangle.rsc") }
-:set steps ($steps, "modules/33-mihomo-env.rsc")
+:if ($mode = "full") do={
+    :set steps ($steps, "modules/32-mihomo-mangle.rsc")
+    :set steps ($steps, "modules/33-mihomo-env.rsc")
+}
 :set steps ($steps, "modules/60-links.rsc")
 :set steps ($steps, "modules/34-mihomo-run.rsc")
 
@@ -79,10 +86,12 @@ $mSay "  web panel: http://192.168.255.2:9090/ui/"
 $mSay "  WG/AWG configs go to /awg_conf/ on the router"
 :if ($mode = "container") do={
     $mSay ""
-    $mSay "  nothing is redirected. Send traffic to the proxy yourself, e.g."
+    $mSay "  the proxy is up and routable, but nothing is sent to it yet, and"
+    $mSay "  no group policy was applied -- mihomo runs on its own defaults."
+    $mSay "  send it traffic with, for example:"
     $mSay "  /ip/dns/static/add name=<domain> type=FWD forward-to=MihomoProxyRoS match-subdomain=yes"
-    $mSay "  or mark connections into a routing table of your own."
-    $mSay "  switching to full mode later is just row 30 again."
+    $mSay "  or mark connections into the MihomoProxyRoS routing table yourself."
+    $mSay "  row 30 again, choosing full, adds the policy without redoing the rest."
 }
 
 }

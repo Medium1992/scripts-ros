@@ -10,7 +10,6 @@
 :global mNeed
 :global mErr
 :global mSay
-:global mStateGet
 
 $mHdr "MihomoProxyRoS network"
 
@@ -18,15 +17,10 @@ $mHdr "MihomoProxyRoS network"
 # RouterOS rejects a rule referring to a list that does not exist with a
 # message that says nothing about what is missing. Fail clearly instead.
 #
-# Container-only mode needs WAN (InAccept includes it, which is what stops the
-# proxy from looping its own egress back into itself) but not LAN, because
-# nothing from the LAN is being redirected.
-:local mode [$mStateGet "mihomo_mode"]
-:if ([:len $mode] = 0) do={ :set mode "full" }
-
-:local needed {"WAN"}
-:if ($mode = "full") do={ :set needed ($needed, "LAN") }
-:foreach l in=$needed do={
+# Only WAN is needed here. InAccept includes it, which is what stops the proxy
+# from looping its own egress back into itself. LAN matters only to the mangle
+# rules, so it is 32-mihomo-mangle that insists on it.
+:foreach l in={"WAN"} do={
     :if ([:len [/interface/list/find where name=$l]] = 0) do={
         $mSay ("  [ !! ] interface list " . $l . " does not exist.")
         $mSay "         Run row 10 (Base settings) first."
@@ -73,15 +67,11 @@ $mHdr "MihomoProxyRoS network"
     }
 } do={ $mErr "dns forwarder" $e }
 
-# The routing table and its routes exist to carry redirected traffic. In
-# container-only mode nothing is redirected, so creating them would leave a
-# table that nothing marks into -- confusing to find later, and one more thing
-# to explain when it does not work.
-:if ($mode != "full") do={
-    $mSay ""
-    $mSay "  container-only mode: routing table and policy routes skipped"
-} else={
-
+# The routing table, the default route into the container and the fake-ip route
+# are the container's own plumbing, not the redirection policy. Without them
+# there is nothing to point traffic at and the container cannot be used at all,
+# so they go in whichever mode was chosen. What decides which traffic arrives
+# is mangle, and that lives in 32.
 :onerror e in={
     :if ([$mNeed id=[/routing/table/find where comment="MihomoProxyRoS"] name="routing-table MihomoProxyRoS"]) do={
         /routing/table/add name=MihomoProxyRoS fib comment="MihomoProxyRoS"
@@ -109,5 +99,3 @@ $mHdr "MihomoProxyRoS network"
         $mOk "route 198.18.0.0/15 (fake-ip)"
     }
 } do={ $mErr "routes" $e }
-
-}
