@@ -30,7 +30,7 @@
 :local blackhole [:len [/ip/route/find where comment="BlackHole"]]
 
 :local baseHave 0
-:if ($dnsFwd >= 7 and $dnsRemote) do={ :set baseHave ($baseHave + 1) }
+:if ($dnsFwd >= 9 and $dnsRemote) do={ :set baseHave ($baseHave + 1) }
 :if ($ntpOn) do={ :set baseHave ($baseHave + 1) }
 :if ($v6Off) do={ :set baseHave ($baseHave + 1) }
 :if ($wanList > 0 and $lanList > 0) do={ :set baseHave ($baseHave + 1) }

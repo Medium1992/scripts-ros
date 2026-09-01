@@ -21,6 +21,16 @@
     :set mBase ("https://raw.githubusercontent.com/Medium1992/scripts-ros/refs/heads/" . $mBranch)
 }
 
+# Where the resolver goes when a DNS container is stopped or removed. Plain
+# DNS on 53 rather than DoH on purpose: Google, Cloudflare and Quad9 DoH are
+# blocked here, so a DoH fallback is not a fallback at all, and this is the one
+# path that has to work with no container and no proxy running.
+#   194.85.254.37  NSDI
+#   77.88.8.8      Yandex
+# assets/changeDNS.rsc carries the same list inline -- it runs from the
+# scheduler without the library loaded.
+:global mFallbackServers "194.85.254.37,77.88.8.8"
+
 # Tag written into the comment of every object we create, so uninstall and the
 # status checks can find our work without a hardcoded inventory.
 :global mTag "sros"

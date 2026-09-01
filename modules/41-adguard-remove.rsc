@@ -10,6 +10,7 @@
 :global mSay
 :global mErr
 :global mYesNo
+:global mFallbackServers
 
 $mHdr "Remove AdGuard Home"
 
@@ -19,9 +20,10 @@ $mHdr "Remove AdGuard Home"
 
 :onerror e in={
     :if ([/ip/dns/get servers] = "192.168.255.14") do={
-        /ip/dns/set servers="8.8.8.8" use-doh-server="https://dns.google/dns-query" verify-doh-cert=yes
+        /ip/dns/set use-doh-server="" verify-doh-cert=no
+        /ip/dns/set servers=$mFallbackServers
         /ip/dns/cache/flush
-        $mOk "resolver restored to DoH Google"
+        $mOk ("resolver fell back to " . $mFallbackServers)
     }
 } do={ $mErr "resolver" $e }
 
