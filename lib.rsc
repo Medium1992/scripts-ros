@@ -21,21 +21,70 @@
     :set mBase ("https://raw.githubusercontent.com/Medium1992/scripts-ros/refs/heads/" . $mBranch)
 }
 
-# Where the resolver goes when a DNS container is stopped or removed. Plain
-# DNS on 53 rather than DoH on purpose: this is the one path that has to work
-# with no container, no proxy and no imported roots.
+# Where the resolver goes when nothing else is answering: no container, no
+# proxy, possibly no imported roots. It is chosen once (row 10) and remembered
+# in state as fb_doh and fb_servers; until then these hold the default for this
+# hardware.
 #
-# Order matters and is measured. NSDI (194.85.254.37) answers SERVFAIL for
-# every foreign name -- github.com, raw.githubusercontent.com, ghcr.io and
-# curl.se all fail against it -- and RouterOS treats that failure as final
-# rather than trying the next server. Putting it first breaks this installer,
-# the container image pulls and the CA bundle download. Yandex resolves all of
-# them, so it leads and NSDI follows as domestic redundancy.
-#   77.88.8.8, 77.88.8.1  Yandex
-#   194.85.254.37         NSDI, domestic names only
-# assets/changeDNS.rsc carries the same list inline -- it runs from the
-# scheduler without the library loaded.
-:global mFallbackServers "77.88.8.8,77.88.8.1,194.85.254.37"
+# The default is architecture-dependent because DoH is. RouterOS 7.23 added
+# HTTP/2 for DoH on ARM64 and x86/CHR only, so on those a DoH fallback is
+# sound, and anywhere else plain DNS on 53 is the honest choice -- a fallback
+# that might not speak the right protocol is not a fallback.
+#
+# Plain servers are kept alongside DoH deliberately: RouterOS falls back to
+# them when a DoH query fails, which is exactly what you want from this entry.
+#
+# NSDI is never the leader. It answers SERVFAIL for every foreign name --
+# github.com, ghcr.io, curl.se -- and RouterOS treats a first-server SERVFAIL
+# as final rather than asking the next one, which breaks this installer, the
+# image pulls and the CA download all at once.
+:global mFallbackDoh ""
+:global mFallbackServers "77.88.8.8,77.88.8.1"
+
+:global mFallbackLoad do={
+    :global mStateGet
+    :global mFallbackDoh
+    :global mFallbackServers
+    :local d [$mStateGet "fb_doh"]
+    :local s [$mStateGet "fb_servers"]
+    :if ([:len $s] = 0) do={
+        :set s "77.88.8.8,77.88.8.1"
+        :local arch [/system/resource/get architecture-name]
+        :if ($arch = "arm64" or $arch = "x86_64") do={
+            :set d "https://common.dot.dns.yandex.net/dns-query"
+        } else={
+            :set d ""
+        }
+    }
+    :set mFallbackDoh $d
+    :set mFallbackServers $s
+    :return true
+}
+
+# Point /ip dns at the fallback. One place, so the watchdog, the removals and
+# the base module cannot drift apart on the order of the two settings -- DoH
+# has to be written before servers or the resolver keeps using the old one.
+:global mFallbackApply do={
+    :global mFallbackDoh
+    :global mFallbackServers
+    :if ([:len $mFallbackDoh] > 0) do={
+        /ip/dns/set use-doh-server=$mFallbackDoh verify-doh-cert=yes
+    } else={
+        /ip/dns/set use-doh-server="" verify-doh-cert=no
+    }
+    /ip/dns/set servers=$mFallbackServers
+    /ip/dns/cache/flush
+    :return true
+}
+
+:global mFallbackDesc do={
+    :global mFallbackDoh
+    :global mFallbackServers
+    :if ([:len $mFallbackDoh] > 0) do={
+        :return ($mFallbackDoh . " with " . $mFallbackServers . " behind it")
+    }
+    :return $mFallbackServers
+}
 
 # Tag written into the comment of every object we create, so uninstall and the
 # status checks can find our work without a hardcoded inventory.

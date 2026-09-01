@@ -15,12 +15,13 @@
 #   resolver_addr  its address, e.g. 192.168.255.14
 # Pointing this at a different container is a state change, not a second copy.
 #
-# The fallback is plain DNS on port 53, and the order is measured, not
-# cosmetic: NSDI answers SERVFAIL for every foreign name and RouterOS treats
-# that as final, so it cannot lead. Yandex resolves everything and goes first.
-# Keep in sync with $mFallbackServers in lib.rsc.
-
-:local fallback "77.88.8.8,77.88.8.1,194.85.254.37"
+# The fallback is whatever row 10 settled on, carried in the same state file:
+#   fb_doh      DoH URL, or empty for plain DNS only
+#   fb_servers  plain servers, kept behind DoH as well so a failed DoH query
+#               still resolves
+# Defaults here match lib.rsc for a router where row 10 was never run.
+:local fbDoh ""
+:local fbServers "77.88.8.8,77.88.8.1"
 
 :global mS
 :onerror e in={
@@ -33,6 +34,20 @@
 
 :local target ($mS->"resolver")
 :local addr ($mS->"resolver_addr")
+:if ([:typeof ($mS->"fb_servers")] != "nothing") do={
+    :if ([:len ($mS->"fb_servers")] > 0) do={ :set fbServers ($mS->"fb_servers") }
+}
+:if ([:typeof ($mS->"fb_doh")] != "nothing") do={ :set fbDoh ($mS->"fb_doh") }
+
+:local applyFallback do={
+    :if ([:len $doh] > 0) do={
+        /ip/dns/set use-doh-server=$doh verify-doh-cert=yes
+    } else={
+        /ip/dns/set use-doh-server="" verify-doh-cert=no
+    }
+    /ip/dns/set servers=$servers
+    /ip/dns/cache/flush
+}
 
 :if ([:typeof $target] = "nothing" or [:typeof $addr] = "nothing") do={
     :error "no resolver configured"
@@ -40,10 +55,8 @@
 :if ([:len $target] = 0 or [:len $addr] = 0) do={
     # Nothing is supposed to own the resolver. Only undo our own doing.
     :if ([/ip/dns/get servers] = $addr and [:len $addr] > 0) do={
-        /ip/dns/set use-doh-server="" verify-doh-cert=no
-        /ip/dns/set servers=$fallback
-        /ip/dns/cache/flush
-        :log warning "changeDNS: no resolver configured, fell back to NSDI and Yandex"
+        $applyFallback doh=$fbDoh servers=$fbServers
+        :log warning "changeDNS: no resolver configured, fell back"
     }
 } else={
     :if ([:len [/container/find where comment=$target and running]] > 0) do={
@@ -57,10 +70,8 @@
         }
     } else={
         :if ([/ip/dns/get servers] = $addr) do={
-            /ip/dns/set use-doh-server="" verify-doh-cert=no
-            /ip/dns/set servers=$fallback
-            /ip/dns/cache/flush
-            :log warning ("changeDNS: " . $target . " is down, fell back to NSDI and Yandex")
+            $applyFallback doh=$fbDoh servers=$fbServers
+            :log warning ("changeDNS: " . $target . " is down, fell back")
         }
     }
 }

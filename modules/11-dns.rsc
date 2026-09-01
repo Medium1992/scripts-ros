@@ -7,8 +7,8 @@
 :global mOk
 :global mNeed
 :global mErr
-:global mFallbackServers
 :global mSay
+:global mAsk
 
 $mHdr "DNS"
 
@@ -88,19 +88,50 @@ $mHdr "DNS"
 } do={ $mErr "trust-store" $e }
 
 :onerror e in={
-    # No public DoH here, by name or by IP. Google, Cloudflare and Quad9
-    # DoH are blocked in the target region, and pointing at them by raw
-    # address stopped working too. This setting is what the router
-    # resolves with BEFORE any proxy exists -- during this very install --
-    # so it has to be something that answers on a plain connection.
-    #
-    # The DoH forwarders defined above stay useful: traffic through them
-    # goes out via the proxy once it is up, and row 40 or 41 can take the
-    # resolver over later. This is only the floor.
-    /ip/dns/set allow-remote-requests=yes cache-max-ttl=1d cache-size=15000KiB \
-        doh-max-concurrent-queries=500 doh-max-server-connections=10 \
-        use-doh-server="" verify-doh-cert=no servers=$mFallbackServers
-    $mOk ("resolver settings, upstream " . $mFallbackServers)
+    # This is what the router resolves with before any proxy or container
+    # exists -- during this very install -- so it has to be something that
+    # answers on its own. Which "something" is a choice, because it depends on
+    # the platform and on where you are.
+    :global mFallbackLoad
+    :global mFallbackApply
+    :global mFallbackDesc
+    :global mFallbackDoh
+    :global mFallbackServers
+    :global mStateSet
+    $mFallbackLoad
+
+    :local arch [/system/resource/get architecture-name]
+    :local doh1 "https://common.dot.dns.yandex.net/dns-query"
+    :local doh3 "https://9.9.9.9/dns-query"
+    :local yaudp "77.88.8.8,77.88.8.1"
+
+    $mSay ""
+    $mSay ("  base resolver, used until something else takes over (" . $arch . ")")
+    :if ($arch = "arm64" or $arch = "x86_64") do={
+        $mSay "   1) Yandex DoH, plain Yandex behind it   <- suggested here"
+        $mSay "   2) Yandex plain DNS only"
+    } else={
+        $mSay "   1) Yandex DoH, plain Yandex behind it"
+        $mSay "   2) Yandex plain DNS only               <- suggested here"
+        $mSay "      (HTTP/2 DoH is ARM64 and x86/CHR only, so DoH may not answer)"
+    }
+    $mSay "   3) Quad9 DoH, plain Quad9 behind it"
+    $mSay "   4) NSDI first, Yandex behind it (domestic names resolve first)"
+    $mSay ("  Enter keeps the current choice: " . [$mFallbackDesc])
+    :local fbPick [$mAsk default=""]
+
+    :if ($fbPick = "1") do={ :set mFallbackDoh $doh1 ; :set mFallbackServers $yaudp }
+    :if ($fbPick = "2") do={ :set mFallbackDoh ""    ; :set mFallbackServers $yaudp }
+    :if ($fbPick = "3") do={ :set mFallbackDoh $doh3 ; :set mFallbackServers "9.9.9.9,149.112.112.112" }
+    :if ($fbPick = "4") do={ :set mFallbackDoh ""    ; :set mFallbackServers "194.85.254.37,77.88.8.8" }
+    :if ([:len $fbPick] > 0) do={
+        $mStateSet key="fb_doh" value=$mFallbackDoh
+        $mStateSet key="fb_servers" value=$mFallbackServers
+    }
+
+    /ip/dns/set allow-remote-requests=yes cache-max-ttl=1d cache-size=15000KiB         doh-max-concurrent-queries=500 doh-max-server-connections=10
+    $mFallbackApply
+    $mOk ("resolver: " . [$mFallbackDesc])
 } do={ $mErr "resolver" $e }
 
 # Bootstrap records. Without these the router cannot resolve the DoH hostname
