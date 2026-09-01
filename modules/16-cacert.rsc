@@ -1,95 +1,167 @@
 # scripts-ros :: modules/16-cacert.rsc
-# Imports the Mozilla CA bundle, so RouterOS can actually verify certificates
-# that its own shipped set cannot.
+# Adds the root certificates RouterOS is missing, so verification can actually
+# succeed instead of being switched off.
 #
-# Why this exists: RouterOS answers "ssl: no trusted CA certificate found" for
-# Cloudflare -- 1.1.1.1, one.one.one.one and cloudflare-dns.com alike -- while
-# Google and Quad9 validate fine against the same store. The issuing CA is
-# simply missing from the bundle RouterOS ships. Measured after importing this
-# bundle, Cloudflare DoH passes with verify-doh-cert=yes three times out of
-# three, and so does a verified /tool fetch.
+# The concrete problem, measured rather than assumed: the Cloudflare DNS
+# certificate chains to "SSL.com Root Certification Authority ECC", and that
+# root is not in the set RouterOS ships. So https://1.1.1.1/dns-query fails
+# with "ssl: no trusted CA certificate found" while Google (GTS Root R4 ->
+# GlobalSign Root CA) and Yandex (GlobalSign Root CA - R3) validate fine
+# against the very same store.
 #
-# The alternative is running Cloudflare with verification off, which leaves the
-# connection encrypted but unauthenticated -- and an on-path attacker is
-# exactly what DoH is for, so that is not much of an alternative.
+# Two ways to fix it:
 #
-# Cost: about 120 entries under /certificate. That is clutter, and it is why
-# this is optional rather than part of 11-dns.
+#   targeted  import only the roots this project actually needs. They are
+#             committed to the repository with their sha256 in the header, so
+#             what gets installed is reviewable and does not change under you.
+#             One certificate, and Cloudflare then passes 3/3 with
+#             verify-doh-cert=yes.
+#   bundle    import the whole Mozilla set from curl.se. Fixes anything, costs
+#             about 120 entries under /certificate, and the download itself
+#             cannot be verified on a router that has no usable roots yet.
 #
-# The import is deliberately deferred through its own [:parse]. RouterOS
-# resolves file-name= when the block is parsed, not when the line runs, so an
-# import written next to the download that creates the file can fail before it
-# ever executes. Splitting the parse removes the question entirely.
+# CRL is deliberately left alone. /certificate settings ships with
+# crl-download=no and crl-use=no, verification works without it, and turning it
+# on means every check depends on reaching a CRL distribution point -- a new
+# way for DNS to break, on a router whose DNS you are in the middle of fixing.
+#
+# The import is deferred through its own [:parse]: file-name= is resolved when
+# the block is parsed, not when the line runs, so an import written next to the
+# download that creates the file can fail before it ever executes.
 
 :global mHdr
 :global mOk
 :global mSay
 :global mErr
-:global mYesNo
+:global mAsk
+:global mFetch
 
 $mHdr "Root certificates"
 
-:local have [:len [/certificate/find where name~"^cacert.pem"]]
-:if ($have > 0) do={
-    $mOk ($have . " bundled root certificate(s) already imported")
-} else={
+# name in the repository | name to give it on the router | what it unblocks
+:local targeted {
+    {"file"="sslcom-ecc-root"; "as"="CloudFlare_CA"; "why"="Cloudflare DoH"}
+}
 
-$mSay "  RouterOS cannot verify some perfectly valid certificates, Cloudflare"
-$mSay "  among them, because the issuing CA is not in the set it ships."
-$mSay "  Importing the Mozilla bundle from curl.se fixes that, at the cost of"
-$mSay "  around 120 entries under /certificate."
+:local haveBundle [:len [/certificate/find where name~"^cacert.pem"]]
+:local haveTargeted 0
+:foreach t in=$targeted do={
+    :set haveTargeted ($haveTargeted + [:len [/certificate/find where name=($t->"as")]])
+}
+
 $mSay ""
+:if ($haveBundle > 0) do={ $mOk ($haveBundle . " certificate(s) from the Mozilla bundle already imported") }
+:if ($haveTargeted > 0) do={ $mOk ($haveTargeted . " targeted root(s) already imported") }
 
-:if ([$mYesNo prompt="Download and import the Mozilla CA bundle?"] = false) do={
-    $mOk "skipped"
-} else={
+$mSay "   1) targeted  just the roots this project needs, pinned in the repo"
+$mSay "   2) bundle    the whole Mozilla set from curl.se, about 120 entries"
+$mSay "   3) skip"
+$mSay "  choose:"
+:local pick [$mAsk default="3"]
 
-:local got false
-:onerror e in={
-    # This one download cannot itself be verified on a router that has no
-    # usable roots yet, which is the situation being fixed. Say so plainly
-    # rather than implying a guarantee that is not there.
-    $mSay "  downloading https://curl.se/ca/cacert.pem (unverified, see above)"
-    /tool fetch url="https://curl.se/ca/cacert.pem" mode=https check-certificate=no \
-        dst-path="cacert.pem" duration=60s
-    :delay 2
-    :if ([:len [/file/find where name="cacert.pem"]] > 0) do={
-        $mOk ("downloaded, " . [/file/get [find where name="cacert.pem"] size] . " bytes")
-        :set got true
-    }
-} do={ $mErr "download" $e }
-
-:if ($got) do={
+# Import a PEM that is already on the router, then give it a name worth reading
+# in /certificate print.
+:global mImportPem do={
+    :global mOk
+    :global mErr
     :onerror e in={
-        :local imp [:parse "/certificate/import file-name=cacert.pem passphrase=\"\""]
+        :local imp [:parse ("/certificate/import file-name=" . $file . " passphrase=\"\"")]
         $imp
         :delay 2
-        :local n [:len [/certificate/find where name~"^cacert.pem"]]
-        $mOk ($n . " root certificate(s) imported")
-        # Imported roots arrive trusted, but do not assume it.
-        :local untrusted [/certificate/find where name~"^cacert.pem" and trusted=no]
-        :if ([:len $untrusted] > 0) do={
-            /certificate/set $untrusted trusted=yes
-            $mOk ([:len $untrusted] . " marked trusted")
+        :local fresh [/certificate/find where name~("^" . $file)]
+        :if ([:len $fresh] = 0) do={
+            $mErr $as "import produced no certificate"
+            :return false
         }
-    } do={ $mErr "import" $e }
+        :foreach c in=$fresh do={
+            /certificate/set $c name=$as trusted=yes
+        }
+        $mOk ($as . " imported and trusted")
+        :return true
+    } do={
+        $mErr $as $e
+        :return false
+    }
+}
+:global mImportPem
 
-    # The bundle is only useful once something checks against it. CloudFlare
-    # was defined with verification off precisely because it could not pass;
-    # now it can.
+:if ($pick = "1") do={
+    :foreach t in=$targeted do={
+        :if ([:len [/certificate/find where name=($t->"as")]] > 0) do={
+            $mOk (($t->"as") . " already present")
+        } else={
+            :local body [$mFetch ("assets/ca/" . ($t->"file") . ".pem")]
+            :if ([:len $body] = 0) do={
+                $mErr ($t->"as") "could not fetch the certificate from the repository"
+            } else={
+                :local fname (($t->"file") . ".pem")
+                :onerror e in={
+                    /file/remove [find where name=$fname]
+                } do={}
+                :onerror e in={
+                    /file/add name=$fname contents=$body
+                    :delay 2
+                    $mImportPem file=$fname as=($t->"as")
+                    /file/remove [find where name=$fname]
+                    $mSay ("    unblocks: " . ($t->"why"))
+                } do={ $mErr ($t->"as") $e }
+            }
+        }
+    }
+} else={
+:if ($pick = "2") do={
+    :if ($haveBundle > 0) do={
+        $mOk "bundle already imported"
+    } else={
+        :local got false
+        :onerror e in={
+            $mSay "  downloading https://curl.se/ca/cacert.pem"
+            $mSay "  (this one download cannot be verified -- a router without"
+            $mSay "   usable roots is exactly the situation being repaired)"
+            /tool fetch url="https://curl.se/ca/cacert.pem" mode=https check-certificate=no \
+                dst-path="cacert.pem" duration=60s
+            :delay 2
+            :if ([:len [/file/find where name="cacert.pem"]] > 0) do={
+                $mOk ("downloaded, " . [/file/get [find where name="cacert.pem"] size] . " bytes")
+                :set got true
+            }
+        } do={ $mErr "download" $e }
+
+        :if ($got) do={
+            :onerror e in={
+                :local imp [:parse "/certificate/import file-name=cacert.pem passphrase=\"\""]
+                $imp
+                :delay 2
+                $mOk ([:len [/certificate/find where name~"^cacert.pem"]] . " root certificate(s) imported")
+                :local untrusted [/certificate/find where name~"^cacert.pem" and trusted=no]
+                :if ([:len $untrusted] > 0) do={
+                    /certificate/set $untrusted trusted=yes
+                    $mOk ([:len $untrusted] . " marked trusted")
+                }
+            } do={ $mErr "import" $e }
+            :onerror e in={ /file/remove [find where name="cacert.pem"] } do={}
+            $mSay "  refresh it occasionally: the bundle changes as CAs come and go."
+        }
+    }
+} else={
+    $mOk "skipped"
+}
+}
+
+# Verification is only worth anything once something checks against it. With
+# the roots present, the verifying CloudFlare forwarders can finally answer.
+:if ($pick = "1" or $pick = "2") do={
+    :delay 3
     :onerror e in={
-        :local cf [/ip/dns/forwarders/find where name~"^CloudFlare" and verify-doh-cert=no]
-        :if ([:len $cf] > 0) do={
-            :delay 3
-            /ip/dns/forwarders/set $cf verify-doh-cert=yes
-            $mOk ([:len $cf] . " CloudFlare forwarder(s) now verify their certificate")
+        :local n 0
+        :foreach f in=[/ip/dns/forwarders/find where name~"^CloudFlare"] do={
+            :if ([/ip/dns/forwarders/get $f verify-doh-cert] = false) do={
+                :if ([:typeof [:find [/ip/dns/forwarders/get $f name] "_noverify"]] != "num") do={
+                    /ip/dns/forwarders/set $f verify-doh-cert=yes
+                    :set n ($n + 1)
+                }
+            }
         }
+        :if ($n > 0) do={ $mOk ($n . " CloudFlare forwarder(s) now verify their certificate") }
     } do={ $mErr "forwarder upgrade" $e }
-
-    :onerror e in={ /file/remove [find where name="cacert.pem"] } do={}
-    $mSay ""
-    $mSay "  refresh it occasionally: the bundle changes as CAs come and go."
-}
-
-}
 }

@@ -17,9 +17,9 @@
 
 $mHdr "Remove root certificates"
 
-:local ids [/certificate/find where name~"^cacert.pem"]
+:local ids [/certificate/find where name~"^cacert.pem" or name="CloudFlare_CA"]
 :if ([:len $ids] = 0) do={
-    $mOk "no imported bundle present"
+    $mOk "no imported roots present"
 } else={
     :if ([$mYesNo prompt=("Remove " . [:len $ids] . " imported root certificate(s)?")] = false) do={
         $mOk "cancelled"

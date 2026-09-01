@@ -11,56 +11,55 @@
 
 $mHdr "DNS"
 
-# name | doh | dns | verify -- doh and dns are mutually exclusive
-# name | doh | dns | verify -- doh and dns are mutually exclusive
+# One provider, up to three forwarders, so the variant is readable from the
+# name alone and nobody has to open the config to find out what they get:
 #
-# verify=false on CloudFlare is measured, and the cause is known: RouterOS
-# answers "ssl: no trusted CA certificate found" for 1.1.1.1, one.one.one.one
-# and cloudflare-dns.com alike, while Google and Quad9 validate cleanly with
-# the same trust store. It is not a hostname mismatch and not a problem with
-# the server -- the CA that signed the CloudFlare certificate is simply absent
-# from the bundle RouterOS ships. Demanding verification here would leave a
-# forwarder that never answers.
+#   <Name>            DoH with certificate verification -- the default
+#   <Name>_noverify   the same DoH with verification off
+#   <Name>_udp        plain DNS on port 53
 #
-# Be aware of what this costs: the connection stays encrypted, but it is no
-# longer authenticated, so anyone able to intercept the route to 1.1.1.1 can
-# terminate the TLS and answer whatever they like. That is precisely the
-# attacker DoH exists to defeat. Prefer Google or Quad9 as the DoH forwarder
-# you actually route through, or import the missing CA and set verify=true.
-#
-# Yandex is plain DNS on purpose -- not because its DoH is broken (measured
-# properly, common.dot.dns.yandex.net answers three times out of three with
-# verification on), but because this entry is the fallback path. The fallback
-# has to work on a router with no imported roots, no proxy and nothing running,
-# and plain DNS on 53 is the only thing that qualifies.
-:local forwarders {
-    {"name"="Google";          "doh"="https://8.8.8.8/dns-query";           "dns"=""; "verify"=true};
-    {"name"="Google-Host";     "doh"="https://dns.google/dns-query";        "dns"=""; "verify"=true};
-    {"name"="CloudFlare";      "doh"="https://1.1.1.1/dns-query";           "dns"=""; "verify"=false};
-    {"name"="CloudFlare-Host"; "doh"="https://one.one.one.one/dns-query";   "dns"=""; "verify"=false};
-    {"name"="Quad9";           "doh"="https://9.9.9.9/dns-query";           "dns"=""; "verify"=true};
-    {"name"="Quad9-Host";      "doh"="https://dns.quad9.net/dns-query";     "dns"=""; "verify"=true};
-    {"name"="XBOX";            "doh"="";                                    "dns"="111.88.96.50,111.88.96.51"; "verify"=true};
-    {"name"="XBOX-DOH";        "doh"="https://xbox-dns.ru/dns-query";       "dns"=""; "verify"=true};
-    {"name"="Yandex";          "doh"="";                                    "dns"="77.88.8.8,77.88.8.1";       "verify"=false};
-    {"name"="Google8";         "doh"="";                                    "dns"="8.8.8.8";                   "verify"=false};
-    {"name"="NSDI";            "doh"="";                                    "dns"="194.85.254.37";             "verify"=false};
-    {"name"="Fallback";        "doh"="";                                    "dns"="194.85.254.37,77.88.8.8";   "verify"=false}
+# _noverify exists because RouterOS cannot validate every valid certificate:
+# its bundled root set is missing the CA that signs the Cloudflare chain. Run
+# 16-cacert and the plain <Name> works, at which point _noverify is only a
+# diagnostic. Encryption without authentication does not stop an on-path
+# attacker, which is the one DoH is for, so it is never the default.
+:local providers {
+    {"name"="Google";         "doh"="https://8.8.8.8/dns-query";                    "udp"="8.8.8.8,8.8.4.4"};
+    {"name"="GoogleHost";     "doh"="https://dns.google/dns-query";                 "udp"=""};
+    {"name"="CloudFlare";     "doh"="https://1.1.1.1/dns-query";                    "udp"="1.1.1.1,1.0.0.1"};
+    {"name"="CloudFlareHost"; "doh"="https://one.one.one.one/dns-query";            "udp"=""};
+    {"name"="Quad9";          "doh"="https://9.9.9.9/dns-query";                    "udp"="9.9.9.9,149.112.112.112"};
+    {"name"="Quad9Host";      "doh"="https://dns.quad9.net/dns-query";              "udp"=""};
+    {"name"="Yandex";         "doh"="https://common.dot.dns.yandex.net/dns-query";  "udp"="77.88.8.8,77.88.8.1"};
+    {"name"="XBOX";           "doh"="https://xbox-dns.ru/dns-query";                "udp"="111.88.96.50,111.88.96.51"};
+    {"name"="NSDI";           "doh"="";                                             "udp"="194.85.254.37"};
+    {"name"="Fallback";       "doh"="";                                             "udp"="194.85.254.37,77.88.8.8"}
 }
 
-
 :onerror e in={
-    :foreach f in=$forwarders do={
-        :local label ("forwarder " . ($f->"name"))
-        :if ([$mNeed id=[/ip/dns/forwarders/find where name=($f->"name")] name=$label]) do={
-            :if ([:len ($f->"doh")] > 0) do={
-                /ip/dns/forwarders/add name=($f->"name") doh-servers=($f->"doh") verify-doh-cert=($f->"verify")
-            } else={
-                /ip/dns/forwarders/add name=($f->"name") dns-servers=($f->"dns") verify-doh-cert=($f->"verify")
+    :local made 0
+    :foreach pr in=$providers do={
+        :local base ($pr->"name")
+        :if ([:len ($pr->"doh")] > 0) do={
+            :if ([$mNeed id=[/ip/dns/forwarders/find where name=$base] name=("forwarder " . $base)]) do={
+                /ip/dns/forwarders/add name=$base doh-servers=($pr->"doh") verify-doh-cert=yes
+                :set made ($made + 1)
             }
-            $mOk $label
+            :local nv ($base . "_noverify")
+            :if ([$mNeed id=[/ip/dns/forwarders/find where name=$nv] name=("forwarder " . $nv)]) do={
+                /ip/dns/forwarders/add name=$nv doh-servers=($pr->"doh") verify-doh-cert=no
+                :set made ($made + 1)
+            }
+        }
+        :if ([:len ($pr->"udp")] > 0) do={
+            :local up ($base . "_udp")
+            :if ([$mNeed id=[/ip/dns/forwarders/find where name=$up] name=("forwarder " . $up)]) do={
+                /ip/dns/forwarders/add name=$up dns-servers=($pr->"udp") verify-doh-cert=no
+                :set made ($made + 1)
+            }
         }
     }
+    $mOk ($made . " forwarder(s) added")
 } do={ $mErr "forwarders" $e }
 
 # builtin-trust-store is scoped per service, and a service left out of it has
@@ -99,6 +98,7 @@ $mHdr "DNS"
     {"name"="cloudflare-dns.com";"addr"="104.16.248.249"; "note"="DNS CloudFlare"};
     {"name"="cloudflare-dns.com";"addr"="104.16.249.249"; "note"="DNS CloudFlare"};
     {"name"="one.one.one.one";   "addr"="1.1.1.1";        "note"="DNS CloudFlare"};
+    {"name"="common.dot.dns.yandex.net"; "addr"="77.88.8.8"; "note"="DNS Yandex"};
     {"name"="one.one.one.one";   "addr"="1.0.0.1";        "note"="DNS CloudFlare"};
     {"name"="dns.quad9.net";     "addr"="9.9.9.9";        "note"="DNS Quad9"};
     {"name"="dns.quad9.net";     "addr"="149.112.112.112";"note"="DNS Quad9"};
