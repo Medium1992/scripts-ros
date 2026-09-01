@@ -179,7 +179,8 @@ $mReloadStatus
     :put ""
     :put "=============================================="
     :foreach k,v in=$mMenu do={
-        :put (" " . $k . [:pick "   " 0 (3 - [:len $k])] . ($v->"state") . " " . ($v->"title") . [:pick "                    " 0 (20 - [:len ($v->"title")])] . ($v->"detail"))
+        :global mPad
+        :put (" " . [$mPad $k 3] . ($v->"state") . " " . [$mPad ($v->"title") 21] . ($v->"detail"))
     }
     :put ""
     :put "  a   [    ] install everything"

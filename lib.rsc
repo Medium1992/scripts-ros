@@ -55,6 +55,16 @@
     :put ("== " . $1)
 }
 
+# Pad $1 out to $2 columns. Never let the width go negative: [:pick] with a
+# negative count does not clamp, it produces nonsense, and a name one character
+# too long silently glues itself to the next column.
+:global mPad do={
+    :local s $1
+    :local w $2
+    :if ([:len $s] >= $w) do={ :return ($s . " ") }
+    :return ($s . [:pick "                                        " 0 ($w - [:len $s])])
+}
+
 :global mOk   do={ :put ("  [ ++ ] " . $1) }
 :global mSkip do={ :put ("  [ == ] " . $1) }
 :global mMiss do={ :put ("  [ -- ] " . $1) }

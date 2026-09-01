@@ -199,6 +199,7 @@
 # --------------------------------------------------------------- build menu
 :set mMenu {
     "10"={"module"="10-base.rsc";     "remove"="10-base-remove.rsc";     "title"="Base settings"};
+    "17"={"module"="17-dnstest.rsc";  "remove"="17-dnstest.rsc";         "title"="Test DoH"};
     "20"={"module"="20-storage.rsc";  "remove"="20-storage-remove.rsc";  "title"="Container storage"};
     "30"={"module"="30-mihomo.rsc";   "remove"="30-mihomo-remove.rsc";   "title"="MihomoProxyRoS"};
     "40"={"module"="40-dnsproxy.rsc"; "remove"="40-dnsproxy-remove.rsc"; "title"="DNSProxy"};
@@ -210,6 +211,12 @@
 
 :set ($mMenu->"10"->"state")  [$mMark have=$baseHave want=5]
 :set ($mMenu->"10"->"detail") $baseDetail
+:local dohN 0
+:foreach f in=[/ip/dns/forwarders/find] do={
+    :if ([:len [/ip/dns/forwarders/get $f doh-servers]] > 0) do={ :set dohN ($dohN + 1) }
+}
+:set ($mMenu->"17"->"state")  "[    ]"
+:set ($mMenu->"17"->"detail") ($dohN . " DoH forwarder(s) to probe")
 :set ($mMenu->"20"->"state")  [$mMark have=$storHave want=2]
 :set ($mMenu->"20"->"detail") $storDetail
 :set ($mMenu->"30"->"state")  [$mMark have=$mhHave want=5]
