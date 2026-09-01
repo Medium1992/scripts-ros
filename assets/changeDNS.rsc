@@ -15,14 +15,12 @@
 #   resolver_addr  its address, e.g. 192.168.255.14
 # Pointing this at a different container is a state change, not a second copy.
 #
-# The fallback is plain DNS on port 53, not DoH: Google, Cloudflare and Quad9
-# DoH are blocked here, so falling back to them is falling back to nothing, and
-# this is the one path that must work with no container and no proxy running.
-#   194.85.254.37  NSDI
-#   77.88.8.8      Yandex
+# The fallback is plain DNS on port 53, and the order is measured, not
+# cosmetic: NSDI answers SERVFAIL for every foreign name and RouterOS treats
+# that as final, so it cannot lead. Yandex resolves everything and goes first.
 # Keep in sync with $mFallbackServers in lib.rsc.
 
-:local fallback "194.85.254.37,77.88.8.8"
+:local fallback "77.88.8.8,77.88.8.1,194.85.254.37"
 
 :global mS
 :onerror e in={

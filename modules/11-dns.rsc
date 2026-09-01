@@ -34,7 +34,7 @@ $mHdr "DNS"
     {"name"="Yandex";         "doh"="https://common.dot.dns.yandex.net/dns-query";  "udp"="77.88.8.8,77.88.8.1"};
     {"name"="XBOX";           "doh"="https://xbox-dns.ru/dns-query";                "udp"="111.88.96.50,111.88.96.51"};
     {"name"="NSDI";           "doh"="";                                             "udp"="194.85.254.37"};
-    {"name"="Fallback";       "doh"="";                                             "udp"="194.85.254.37,77.88.8.8"}
+    {"name"="Fallback";       "doh"="";                                             "udp"="77.88.8.8,77.88.8.1,194.85.254.37"}
 }
 
 :onerror e in={
