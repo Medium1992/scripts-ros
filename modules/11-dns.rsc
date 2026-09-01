@@ -12,17 +12,31 @@
 $mHdr "DNS"
 
 # name | doh | dns | verify -- doh and dns are mutually exclusive
+# name | doh | dns | verify -- doh and dns are mutually exclusive
+#
+# verify=false on CloudFlare is measured, not cautious: with
+# verify-doh-cert=yes it fails three times out of three on RouterOS 7.24.1,
+# by IP and by hostname alike, while Google and Quad9 verify cleanly. The
+# certificate does not validate against the URL host the way RouterOS checks
+# it, so demanding verification here just disables the forwarder.
+#
+# Yandex is plain DNS on purpose. Its DoH endpoint is reported not to work on
+# RouterOS, and it is the fallback path, which is the last place to be clever.
 :local forwarders {
-    {"name"="Google";      "doh"="https://8.8.8.8/dns-query";        "dns"=""; "verify"=true};
-    {"name"="CloudFlare";  "doh"="https://1.1.1.1/dns-query";        "dns"=""; "verify"=true};
-    {"name"="Quad9";       "doh"="https://9.9.9.9/dns-query";        "dns"=""; "verify"=true};
-    {"name"="XBOX";        "doh"="";                                "dns"="111.88.96.50,111.88.96.51"; "verify"=true};
-    {"name"="XBOX-DOH";    "doh"="https://xbox-dns.ru/dns-query";    "dns"=""; "verify"=true};
-    {"name"="Yandex";      "doh"="";                                "dns"="77.88.8.8,77.88.8.1";       "verify"=false};
-    {"name"="Google8";     "doh"="";                                "dns"="8.8.8.8";                   "verify"=false};
-    {"name"="NSDI";        "doh"="";                                "dns"="194.85.254.37";             "verify"=false};
-    {"name"="Fallback";    "doh"="";                                "dns"="194.85.254.37,77.88.8.8";   "verify"=false}
+    {"name"="Google";          "doh"="https://8.8.8.8/dns-query";           "dns"=""; "verify"=true};
+    {"name"="Google-Host";     "doh"="https://dns.google/dns-query";        "dns"=""; "verify"=true};
+    {"name"="CloudFlare";      "doh"="https://1.1.1.1/dns-query";           "dns"=""; "verify"=false};
+    {"name"="CloudFlare-Host"; "doh"="https://one.one.one.one/dns-query";   "dns"=""; "verify"=false};
+    {"name"="Quad9";           "doh"="https://9.9.9.9/dns-query";           "dns"=""; "verify"=true};
+    {"name"="Quad9-Host";      "doh"="https://dns.quad9.net/dns-query";     "dns"=""; "verify"=true};
+    {"name"="XBOX";            "doh"="";                                    "dns"="111.88.96.50,111.88.96.51"; "verify"=true};
+    {"name"="XBOX-DOH";        "doh"="https://xbox-dns.ru/dns-query";       "dns"=""; "verify"=true};
+    {"name"="Yandex";          "doh"="";                                    "dns"="77.88.8.8,77.88.8.1";       "verify"=false};
+    {"name"="Google8";         "doh"="";                                    "dns"="8.8.8.8";                   "verify"=false};
+    {"name"="NSDI";            "doh"="";                                    "dns"="194.85.254.37";             "verify"=false};
+    {"name"="Fallback";        "doh"="";                                    "dns"="194.85.254.37,77.88.8.8";   "verify"=false}
 }
+
 
 :onerror e in={
     :foreach f in=$forwarders do={
@@ -68,6 +82,8 @@ $mHdr "DNS"
     {"name"="dns.google";        "addr"="8.8.4.4";        "note"="DNS Google"};
     {"name"="cloudflare-dns.com";"addr"="104.16.248.249"; "note"="DNS CloudFlare"};
     {"name"="cloudflare-dns.com";"addr"="104.16.249.249"; "note"="DNS CloudFlare"};
+    {"name"="one.one.one.one";   "addr"="1.1.1.1";        "note"="DNS CloudFlare"};
+    {"name"="one.one.one.one";   "addr"="1.0.0.1";        "note"="DNS CloudFlare"};
     {"name"="dns.quad9.net";     "addr"="9.9.9.9";        "note"="DNS Quad9"};
     {"name"="dns.quad9.net";     "addr"="149.112.112.112";"note"="DNS Quad9"};
     {"name"="xbox-dns.ru";       "addr"="111.88.96.55";   "note"="XBOX DNS"}
