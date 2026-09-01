@@ -18,7 +18,9 @@ $mHdr "DNS"
     {"name"="XBOX";        "doh"="";                                "dns"="111.88.96.50,111.88.96.51"; "verify"=true};
     {"name"="XBOX-DOH";    "doh"="https://xbox-dns.ru/dns-query";    "dns"=""; "verify"=true};
     {"name"="Yandex";      "doh"="";                                "dns"="77.88.8.8,77.88.8.1";       "verify"=false};
-    {"name"="Google8";     "doh"="";                                "dns"="8.8.8.8";                   "verify"=false}
+    {"name"="Google8";     "doh"="";                                "dns"="8.8.8.8";                   "verify"=false};
+    {"name"="NSDI";        "doh"="";                                "dns"="194.85.254.37";             "verify"=false};
+    {"name"="Fallback";    "doh"="";                                "dns"="194.85.254.37,77.88.8.8";   "verify"=false}
 }
 
 :onerror e in={
