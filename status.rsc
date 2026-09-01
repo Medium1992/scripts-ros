@@ -160,26 +160,44 @@
     :if ([:len $lnSub] > 1) do={ :set lnDetail ($lnDetail . ", SUB set") }
 }
 
-# --------------------------------------------------------------- build menu
-:set mMenu {
-    "1"={"module"="10-base.rsc";     "title"="Base settings"};
-    "2"={"module"="20-storage.rsc";  "title"="Container storage"};
-    "3"={"module"="30-mihomo.rsc";   "title"="MihomoProxyRoS"};
-    "4"={"module"="40-dnsproxy.rsc"; "title"="DNSProxy"};
-    "5"={"module"="50-lists.rsc";    "title"="Resource lists"};
-    "6"={"module"="60-links.rsc";    "title"="Proxy link / sub"}
+# --------------------------------------------------------------- 41. AdGuard
+:local agCont [:len [/container/find where comment="AdGuardHome"]]
+:local agRun [:len [/container/find where comment="AdGuardHome" and running]]
+:local agHave 0
+:local agDetail "not installed"
+:if ($agCont > 0) do={
+    :set agHave 1
+    :set agDetail "installed, STOPPED"
+    :if ($agRun > 0) do={
+        :set agHave 2
+        :set agDetail "running, UI http://192.168.255.14:3000"
+    }
 }
 
-:set ($mMenu->"1"->"state")  [$mMark have=$baseHave want=5]
-:set ($mMenu->"1"->"detail") $baseDetail
-:set ($mMenu->"2"->"state")  [$mMark have=$storHave want=2]
-:set ($mMenu->"2"->"detail") $storDetail
-:set ($mMenu->"3"->"state")  [$mMark have=$mhHave want=5]
-:set ($mMenu->"3"->"detail") $mhDetail
-:set ($mMenu->"4"->"state")  [$mMark have=$dpHave want=2]
-:set ($mMenu->"4"->"detail") $dpDetail
-:set ($mMenu->"5"->"state")  [$mMark have=$lsHave want=4]
-:if ($lsStale > 0) do={ :set ($mMenu->"5"->"state") "[upd ]" }
-:set ($mMenu->"5"->"detail") $lsDetail
-:set ($mMenu->"6"->"state")  [$mMark have=$lnHave want=2]
-:set ($mMenu->"6"->"detail") $lnDetail
+# --------------------------------------------------------------- build menu
+:set mMenu {
+    "10"={"module"="10-base.rsc";     "remove"="10-base-remove.rsc";     "title"="Base settings"};
+    "20"={"module"="20-storage.rsc";  "remove"="20-storage-remove.rsc";  "title"="Container storage"};
+    "30"={"module"="30-mihomo.rsc";   "remove"="30-mihomo-remove.rsc";   "title"="MihomoProxyRoS"};
+    "40"={"module"="40-dnsproxy.rsc"; "remove"="40-dnsproxy-remove.rsc"; "title"="DNSProxy"};
+    "41"={"module"="41-adguard.rsc";  "remove"="41-adguard-remove.rsc";  "title"="AdGuard Home"};
+    "50"={"module"="50-lists.rsc";    "remove"="50-lists-remove.rsc";    "title"="Resource lists"};
+    "60"={"module"="60-links.rsc";    "remove"="60-links-remove.rsc";    "title"="Proxy link / sub"}
+}
+
+
+:set ($mMenu->"10"->"state")  [$mMark have=$baseHave want=5]
+:set ($mMenu->"10"->"detail") $baseDetail
+:set ($mMenu->"20"->"state")  [$mMark have=$storHave want=2]
+:set ($mMenu->"20"->"detail") $storDetail
+:set ($mMenu->"30"->"state")  [$mMark have=$mhHave want=5]
+:set ($mMenu->"30"->"detail") $mhDetail
+:set ($mMenu->"40"->"state")  [$mMark have=$dpHave want=2]
+:set ($mMenu->"40"->"detail") $dpDetail
+:set ($mMenu->"41"->"state")  [$mMark have=$agHave want=2]
+:set ($mMenu->"41"->"detail") $agDetail
+:set ($mMenu->"50"->"state")  [$mMark have=$lsHave want=4]
+:if ($lsStale > 0) do={ :set ($mMenu->"50"->"state") "[upd ]" }
+:set ($mMenu->"50"->"detail") $lsDetail
+:set ($mMenu->"60"->"state")  [$mMark have=$lnHave want=2]
+:set ($mMenu->"60"->"detail") $lnDetail
