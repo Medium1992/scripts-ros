@@ -1,0 +1,197 @@
+# scripts-ros :: install.rsc
+# The only file a user pastes into the terminal. Everything else is fetched.
+#
+# It stays small on purpose: preflight, load the library, draw the menu, hand
+# control to a module. Modules can grow; this file must not.
+#
+#   :global mBranch "dev"                     # test another branch
+#   :global mBase "http://192.168.88.10:8000" # or a local http server
+#   :global r [/tool fetch url="https://raw.githubusercontent.com/Medium1992/scripts-ros/refs/heads/main/install.rsc" mode=https output=user as-value]
+#   :global s [:parse ($r->"data")] ; $s
+
+# ================================================================ preflight
+# Runs before the library exists, so it may only use plain console commands.
+
+:local verFull [/system/resource/get version]
+:local ver $verFull
+:local sp [:find $ver " "]
+:if ([:typeof $sp] != "nothing") do={ :set ver [:pick $ver 0 $sp] }
+
+:local d1 [:find $ver "."]
+:local major [:tonum [:pick $ver 0 $d1]]
+:local rest [:pick $ver ($d1 + 1) [:len $ver]]
+:local d2 [:find $rest "."]
+:local minor 0
+:local patch 0
+:if ([:typeof $d2] = "nothing") do={
+    :set minor [:tonum $rest]
+} else={
+    :set minor [:tonum [:pick $rest 0 $d2]]
+    :set patch [:tonum [:pick $rest ($d2 + 1) [:len $rest]]]
+}
+:local verNum (($major * 10000) + ($minor * 100) + $patch)
+
+:put "=============================================="
+:put "  scripts-ros installer"
+:put ("  RouterOS " . $verFull . " on " . [/system/resource/get architecture-name])
+:put ("  " . [/system/resource/get board-name])
+:put "=============================================="
+
+:local blocked false
+
+# 7.24.0 shipped a broken argument lookup in the console "find" command, fixed
+# in 7.24.1. This project resolves nearly every object through
+# "find where comment=", so 7.24.0 is not merely old, it is wrong.
+:if ($verNum = 72400) do={
+    :put ""
+    :put "  [ !! ] RouterOS 7.24.0 has a broken console 'find' lookup."
+    :put "         This installer relies on it. Upgrade to 7.24.1 or newer."
+    :set blocked true
+}
+:if ($verNum < 72401) do={
+    :put ""
+    :put ("  [ !! ] RouterOS " . $ver . " is below the supported floor 7.24.1.")
+    :put "         Upgrade first: /system package update check-for-updates"
+    :set blocked true
+}
+
+:if ($blocked = false) do={
+
+# ============================================================ load library
+:global mBranch
+:if ([:typeof $mBranch] = "nothing") do={ :set mBranch "main" }
+:global mBase
+:if ([:typeof $mBase] = "nothing") do={
+    :set mBase ("https://raw.githubusercontent.com/Medium1992/scripts-ros/refs/heads/" . $mBranch)
+}
+
+:put ""
+:put ("  source: " . $mBase)
+:put "  loading library ..."
+
+:local libOk false
+:onerror e in={
+    :local r [/tool fetch url=($mBase . "/lib.rsc") mode=https output=user as-value]
+    :if (($r->"status") = "finished") do={
+        :local fn [:parse ($r->"data")]
+        $fn
+        :set libOk true
+    }
+} do={
+    :put ("  [ !! ] cannot load lib.rsc: " . $e)
+}
+
+:if ($libOk = false) do={
+    :put "  [ !! ] aborting. Check DNS, routing and the GitHub Fastly workaround."
+} else={
+
+:global mSay
+:global mRun
+:global mFetch
+:global mStateLoad
+:global mVerNum
+:set mVerNum $verNum
+
+$mStateLoad
+
+# ============================================================ status probes
+# Kept in a separate file so the menu can show live state without pulling in
+# every module. One fetch, one parse, redone after each action.
+:global mStatus
+:global mMenu
+
+:global mReloadStatus do={
+    :global mFetch
+    :local body [$mFetch "status.rsc"]
+    :if ([:len $body] = 0) do={ :return false }
+    :onerror e in={
+        :local fn [:parse $body]
+        $fn
+    } do={
+        :put ("  [ !! ] status.rsc: " . $e)
+        :return false
+    }
+    :return true
+}
+
+:global mReloadStatus
+$mReloadStatus
+
+# ================================================================= manifest
+# One small file carrying an md5 of every updatable resource. Fetching it once
+# at startup is what lets the menu show "update available" without downloading
+# the scripts it would be comparing.
+:global mManifest
+:onerror e in={
+    :local mf [$mFetch "manifest.rsc"]
+    :if ([:len $mf] > 0) do={
+        :local fn [:parse $mf]
+        $fn
+    }
+} do={
+    :put ("  [ -- ] manifest unavailable, update detection off: " . $e)
+}
+
+# ==================================================================== menu
+# $mMenu is filled by status.rsc: an ordered array of "key" -> "module|title|state|detail"
+:global mDraw do={
+    :global mMenu
+    :put ""
+    :put "=============================================="
+    :foreach k,v in=$mMenu do={
+        :put (" " . $k . "  " . ($v->"state") . " " . ($v->"title") . [:pick "                    " 0 (20 - [:len ($v->"title")])] . ($v->"detail"))
+    }
+    :put ""
+    :put "  a  [    ] install everything (1..6)"
+    :put "  s  [    ] full status report"
+    :put "  x  [    ] uninstall"
+    :put "  q  [    ] quit"
+    :put "=============================================="
+}
+
+:global mDraw
+:global mReloadStatus
+
+:local running true
+:while ($running) do={
+    $mDraw
+    :put "select:"
+    :local pick [/terminal ask]
+
+    :if ($pick = "q") do={
+        :set running false
+    } else={
+        :if ($pick = "s") do={
+            $mRun "modules/99-status.rsc"
+        } else={
+            :if ($pick = "x") do={
+                $mRun "modules/90-uninstall.rsc"
+                $mReloadStatus
+            } else={
+                :if ($pick = "a") do={
+                    :foreach k,v in=$mMenu do={
+                        $mRun ("modules/" . ($v->"module"))
+                    }
+                    $mReloadStatus
+                } else={
+                    :local item ($mMenu->$pick)
+                    :if ([:typeof $item] = "nothing") do={
+                        :put "  unknown choice"
+                    } else={
+                        $mRun ("modules/" . ($item->"module"))
+                        $mReloadStatus
+                    }
+                }
+            }
+        }
+    }
+}
+
+:put ""
+:put "bye. globals cleaned."
+
+}
+}
+
+# Single cleanup point for the whole run. Modules must never do this.
+/system/script/environment/remove [find]

@@ -1,0 +1,5 @@
+# local lab credentials - never commit
+.lab
+.lab.*
+*.local
+*.secret
