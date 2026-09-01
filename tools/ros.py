@@ -37,7 +37,7 @@ def connect():
 
 
 def run_cmd(cli, command):
-    _, out, err = cli.exec_command(command, timeout=180)
+    _, out, err = cli.exec_command(command, timeout=900)
     text = out.read().decode("utf-8", "replace")
     errors = err.read().decode("utf-8", "replace")
     if text:
