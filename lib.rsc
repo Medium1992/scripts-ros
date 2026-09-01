@@ -127,24 +127,48 @@
 # ------------------------------------------------------------------ network
 # Fetch a resource. Relative names resolve against $mBase, absolute URLs pass
 # through. Returns "" on failure -- callers must check, never assume.
+:global mCertWarned false
 :global mFetch do={
     :global mBase
+    :global mCertWarned
     :local url $1
     :if ([:pick $url 0 4] != "http") do={ :set url ($mBase . "/" . $url) }
     # mode must match the scheme: a plain-http dev server fetched with
     # mode=https fails, which is exactly how local testing gets set up.
     :local scheme "https"
     :if ([:pick $url 0 5] = "http:") do={ :set scheme "http" }
+
+    # Everything fetched here is executed by [:parse]. That makes an
+    # unverified TLS connection a code-execution channel for anyone on the
+    # path, so the certificate is checked first and only dropped as a last
+    # resort -- loudly, once, rather than quietly on every call.
+    # Verification needs "fetch" in /certificate/settings builtin-trust-store;
+    # without it RouterOS has no roots for /tool fetch at all.
     :local out ""
-    :onerror e in={
-        :retry command={
-            :local r [/tool fetch url=$url mode=$scheme output=user as-value]
-            :if (($r->"status") != "finished") do={ :error "status not finished" }
-            :set out ($r->"data")
-        } delay=3 max=3
-    } do={
-        :put ("  [ !! ] fetch " . $url . ": " . $e)
-        :set out ""
+    :local checks {"yes";"no"}
+    :if ($scheme = "http") do={ :set checks {"no"} }
+    :foreach chk in=$checks do={
+        :if ([:len $out] = 0) do={
+            :onerror e in={
+                :retry command={
+                    :local r [/tool fetch url=$url mode=$scheme check-certificate=$chk output=user as-value]
+                    :if (($r->"status") != "finished") do={ :error "status not finished" }
+                    :set out ($r->"data")
+                } delay=3 max=2
+            } do={
+                :if ($chk = "no") do={
+                    :put ("  [ !! ] fetch " . $url . ": " . $e)
+                }
+            }
+            :if ([:len $out] > 0 and $chk = "no" and $scheme = "https") do={
+                :if ($mCertWarned = false) do={
+                    :set mCertWarned true
+                    :put "  [ !! ] TLS certificate could NOT be verified; continuing unverified."
+                    :put "         Everything downloaded here is executed. Fix it with:"
+                    :put "         /certificate/settings/set builtin-trust-store=dns,container,fetch"
+                }
+            }
+        }
     }
     :return $out
 }

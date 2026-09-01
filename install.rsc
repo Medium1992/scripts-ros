@@ -67,18 +67,57 @@
 
 :put ""
 :put ("  source: " . $mBase)
+
+# builtin-trust-store is scoped per service. If "fetch" is not in it, /tool
+# fetch has no root certificates at all and cannot verify anything -- and the
+# very next thing this script does is download code and execute it. Add it
+# before that happens, preserving whatever is already there.
+:onerror e in={
+    :local ts [/certificate/settings/get builtin-trust-store]
+    # A failed :find reports typeof "nil", not "nothing" -- "nothing" is for
+    # variables that were never set. Comparing against the wrong one here
+    # silently means "already present" and skips the fix.
+    :if ([:typeof [:find $ts "fetch"]] != "num") do={
+        :if ([:len $ts] = 0 or $ts = "none") do={
+            /certificate/settings/set builtin-trust-store=fetch
+        } else={
+            /certificate/settings/set builtin-trust-store=($ts . ",fetch")
+        }
+        # The new bundle is not usable immediately: a verified fetch still
+        # fails for a second or two after the setting changes, then starts
+        # working. Measured, not superstition.
+        :delay 3
+        :put ("  trust store: " . [/certificate/settings/get builtin-trust-store])
+    }
+} do={
+    :put ("  [ -- ] could not extend the trust store: " . $e)
+}
+
 :put "  loading library ..."
 
 :local libOk false
-:onerror e in={
-    :local r [/tool fetch url=($mBase . "/lib.rsc") mode=https output=user as-value]
-    :if (($r->"status") = "finished") do={
-        :local fn [:parse ($r->"data")]
-        $fn
-        :set libOk true
+:local scheme "https"
+:if ([:pick $mBase 0 5] = "http:") do={ :set scheme "http" }
+:local checks {"yes";"no"}
+:if ($scheme = "http") do={ :set checks {"no"} }
+
+:foreach chk in=$checks do={
+    :if ($libOk = false) do={
+        :onerror e in={
+            :local r [/tool fetch url=($mBase . "/lib.rsc") mode=$scheme check-certificate=$chk output=user as-value]
+            :if (($r->"status") = "finished") do={
+                :local fn [:parse ($r->"data")]
+                $fn
+                :set libOk true
+                :if ($chk = "no" and $scheme = "https") do={
+                    :put "  [ !! ] library downloaded WITHOUT certificate verification."
+                    :put "         It is executed as code. Check what your router trusts."
+                }
+            }
+        } do={
+            :if ($chk = "no") do={ :put ("  [ !! ] cannot load lib.rsc: " . $e) }
+        }
     }
-} do={
-    :put ("  [ !! ] cannot load lib.rsc: " . $e)
 }
 
 :if ($libOk = false) do={

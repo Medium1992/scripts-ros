@@ -101,3 +101,54 @@ CRLF-выгрузка даст другой хеш, и обнаружение о
 `builtin-trust-store` при этом был выставлен в `container,dns`, то есть дело не
 в отсутствии корневых сертификатов. Вывод для кода: forwarder-ы Cloudflare
 заводятся с `verify-doh-cert=no`, иначе они просто не работают.
+
+## `:typeof` от неудачного `:find` — это `nil`
+
+Проверка «есть ли подстрока» пишется так:
+
+```routeros
+:if ([:typeof [:find $haystack "needle"]] != "num") do={ ... не найдено ... }
+```
+
+Ошибка `= "nothing"` не сработает: `nothing` — это про переменную, которой
+никогда не присваивали значение, а неудачный `:find` возвращает `nil`. Сравнение
+с `"nothing"` молча означает «подстрока найдена» и пропускает нужную ветку.
+
+## `builtin-trust-store` действует пословно, по сервисам
+
+Значение вида `container,dns` означает, что встроенный набор корневых
+сертификатов виден **только** контейнерам и DNS. У `/tool fetch` в этом случае
+нет ни одного корня, и `check-certificate=yes` всегда падает с
+`ssl: no trusted CA certificate found`. Замер:
+
+```
+trust store: container,dns
+  check-certificate=no  -> ok
+  check-certificate=yes -> failure: ssl: no trusted CA certificate found
+trust store: fetch,container,dns
+  check-certificate=no  -> ok
+  check-certificate=yes -> ok
+```
+
+Для проекта это существенно: установщик скачивает скрипты и выполняет их через
+`[:parse]`, то есть непроверенный TLS здесь — канал выполнения кода. Поэтому
+`install.rsc` добавляет `fetch` в trust store ещё в preflight, а `$mFetch`
+сначала пробует `check-certificate=yes` и лишь потом откатывается на `no`,
+один раз громко предупредив.
+
+Смена `builtin-trust-store` вступает в силу не мгновенно: сразу после записи
+проверенный fetch ещё падает, а через пару секунд начинает работать. Замер:
+
+```
+immediately after adding fetch:  FAILED
+after 2s more:                   finished
+```
+
+Поэтому после изменения настройки стоит `:delay 3`.
+
+Там же нашлась причина, по которой Cloudflare DoH не проходит проверку:
+RouterOS отвечает `ssl: no trusted CA certificate found` и для `1.1.1.1`, и для
+`one.one.one.one`, и для `cloudflare-dns.com`, тогда как Google и Quad9 при том
+же trust store проверяются нормально. То есть дело не в несовпадении имени и не
+в сервере, а в том, что удостоверяющего центра Cloudflare просто нет в наборе,
+который поставляется с RouterOS.
