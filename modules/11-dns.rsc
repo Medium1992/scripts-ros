@@ -28,8 +28,11 @@ $mHdr "DNS"
 # attacker DoH exists to defeat. Prefer Google or Quad9 as the DoH forwarder
 # you actually route through, or import the missing CA and set verify=true.
 #
-# Yandex is plain DNS on purpose. Its DoH endpoint is reported not to work on
-# RouterOS, and it is the fallback path, which is the last place to be clever.
+# Yandex is plain DNS on purpose -- not because its DoH is broken (measured
+# properly, common.dot.dns.yandex.net answers three times out of three with
+# verification on), but because this entry is the fallback path. The fallback
+# has to work on a router with no imported roots, no proxy and nothing running,
+# and plain DNS on 53 is the only thing that qualifies.
 :local forwarders {
     {"name"="Google";          "doh"="https://8.8.8.8/dns-query";           "dns"=""; "verify"=true};
     {"name"="Google-Host";     "doh"="https://dns.google/dns-query";        "dns"=""; "verify"=true};
