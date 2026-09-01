@@ -58,11 +58,41 @@
 :if ($blocked = false) do={
 
 # ============================================================ load library
+# mBase is RECOMPUTED here every run, never inherited. Globals survive in
+# /system/script/environment between runs, so a stale mBase from an earlier
+# session would silently point this installer at somebody's old dev server --
+# which is exactly what happened once. The dev override is a separate name you
+# have to set on purpose:
+#     :global mDev "http://192.168.88.10:8000"
 :global mBranch
 :if ([:typeof $mBranch] = "nothing") do={ :set mBranch "main" }
+:global mDev
 :global mBase
-:if ([:typeof $mBase] = "nothing") do={
-    :set mBase ("https://raw.githubusercontent.com/Medium1992/scripts-ros/refs/heads/" . $mBranch)
+:set mBase ("https://raw.githubusercontent.com/Medium1992/scripts-ros/refs/heads/" . $mBranch)
+:if ([:typeof $mDev] != "nothing") do={
+    :if ([:len $mDev] > 0) do={
+        :set mBase $mDev
+        :put "  [ !! ] using a local development source, not GitHub"
+    }
+}
+
+# raw.githubusercontent.com resolves onto Fastly ranges that are commonly
+# throttled here, and the very next thing this script does is download from
+# there. 15-netbase installs these too, but that runs long after the first
+# fetch has already had to succeed -- so they belong in preflight, before it.
+:onerror e in={
+    :local added 0
+    :if ([:len [/ip/firewall/nat/find where comment="GitHub_Fastly_fix_dstnat"]] = 0) do={
+        /ip/firewall/nat/add action=netmap chain=dstnat dst-address=185.199.108.0/22             to-addresses=185.199.109.0/24 comment="GitHub_Fastly_fix_dstnat"
+        :set added ($added + 1)
+    }
+    :if ([:len [/ip/firewall/nat/find where comment="GitHub_Fastly_fix_output"]] = 0) do={
+        /ip/firewall/nat/add action=netmap chain=output dst-address=185.199.108.0/22             to-addresses=185.199.109.0/24 comment="GitHub_Fastly_fix_output"
+        :set added ($added + 1)
+    }
+    :if ($added > 0) do={ :put ("  GitHub Fastly workaround: " . $added . " nat rule(s) added") }
+} do={
+    :put ("  [ -- ] could not add the GitHub workaround: " . $e)
 }
 
 :put ""
