@@ -30,12 +30,12 @@
 :local blackhole [:len [/ip/route/find where comment="BlackHole"]]
 
 :local baseHave 0
-:if ($dnsFwd >= 12 and $dnsRemote) do={ :set baseHave ($baseHave + 1) }
+:if ($dnsFwd >= 20 and $dnsRemote) do={ :set baseHave ($baseHave + 1) }
 :if ($ntpOn) do={ :set baseHave ($baseHave + 1) }
 :if ($v6Off) do={ :set baseHave ($baseHave + 1) }
 :if ($wanList > 0 and $lanList > 0) do={ :set baseHave ($baseHave + 1) }
 :if ($blackhole >= 3) do={ :set baseHave ($baseHave + 1) }
-:local caCount [:len [/certificate/find where name~"^cacert.pem"]]
+:local caCount [:len [/certificate/find where name~"^cacert.pem" or name~"_CA$"]]
 
 :local baseDetail ("dns " . $dnsFwd . " fwd")
 :if ($ntpOn) do={

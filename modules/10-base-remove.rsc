@@ -41,13 +41,15 @@ $mRun "modules/16-cacert-remove.rsc"
 # Only the forwarders this project defines. A forwarder the operator added by
 # hand has a name that is not on this list and survives.
 :onerror e in={
-    :local names {"Google";"Google-Host";"CloudFlare";"CloudFlare-Host";"Quad9";"Quad9-Host";"XBOX";"XBOX-DOH";"Yandex";"Google8";"NSDI";"Fallback"}
+    :local bases {"Google";"GoogleHost";"CloudFlare";"CloudFlareHost";"Quad9";"Quad9Host";"Yandex";"XBOX";"NSDI";"Fallback"}
     :local n 0
-    :foreach f in=$names do={
-        :local ids [/ip/dns/forwarders/find where name=$f]
-        :if ([:len $ids] > 0) do={
-            /ip/dns/forwarders/remove $ids
-            :set n ($n + 1)
+    :foreach b in=$bases do={
+        :foreach suffix in={"";"_noverify";"_udp"} do={
+            :local ids [/ip/dns/forwarders/find where name=($b . $suffix)]
+            :if ([:len $ids] > 0) do={
+                /ip/dns/forwarders/remove $ids
+                :set n ($n + 1)
+            }
         }
     }
     $mOk ($n . " DNS forwarder(s) removed")

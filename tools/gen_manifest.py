@@ -10,14 +10,15 @@ every commit that touches lists/ or assets/:
 import hashlib, pathlib
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-TRACKED = ["lists", "assets"]
+# (folder, glob) -- everything the installer can fetch and update
+TRACKED = [("lists", "*.rsc"), ("assets", "*.rsc"), ("assets/ca", "*.pem")]
 CRLF = b"\r\n"
 
 
 def main():
     rows = []
-    for folder in TRACKED:
-        for path in sorted((ROOT / folder).glob("*.rsc")):
+    for folder, pattern in TRACKED:
+        for path in sorted((ROOT / folder).glob(pattern)):
             data = path.read_bytes()
             # RouterOS hashes the bytes it fetched. A CRLF checkout would hash
             # differently on every machine and quietly break update detection,

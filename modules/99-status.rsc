@@ -50,7 +50,7 @@ $mShow label="doh server" value=[/ip/dns/get use-doh-server]
 }
 $mShow label="watchdog DNSchange" value=[:len [/system/scheduler/find where name="DNSchange"]]
 $mShow label="trust store scope" value=[/certificate/settings/get builtin-trust-store]
-:local caN [:len [/certificate/find where name~"^cacert.pem"]]
+:local caN [:len [/certificate/find where name~"^cacert.pem" or name~"_CA$"]]
 :if ($caN = 0) do={
     $mShow label="imported roots" value="none (RouterOS builtin only)"
 } else={
