@@ -107,6 +107,8 @@
 }
 
 # --------------------------------------------------------------- 4. DNSProxy
+:local owner [$mStateGet "resolver"]
+
 :local dpCont [:len [/container/find where comment="DNSProxy"]]
 :local dpRun [:len [/container/find where comment="DNSProxy" and running]]
 :local dpHave 0
@@ -117,6 +119,9 @@
     :if ($dpRun > 0) do={
         :set dpHave 2
         :set dpDetail "running"
+    }
+    :if ($owner = "DNSProxy") do={
+        :set dpDetail ($dpDetail . ", RESOLVER")
     }
 }
 
@@ -170,7 +175,10 @@
     :set agDetail "installed, STOPPED"
     :if ($agRun > 0) do={
         :set agHave 2
-        :set agDetail "running, UI http://192.168.255.14:3000"
+        :set agDetail "running, UI on :3000"
+    }
+    :if ($owner = "AdGuardHome") do={
+        :set agDetail ($agDetail . ", RESOLVER")
     }
 }
 
