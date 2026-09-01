@@ -19,6 +19,9 @@ $mHdr "Remove base settings"
     $mOk "cancelled"
 } else={
 
+:global mRun
+$mRun "modules/16-cacert-remove.rsc"
+
 :onerror e in={
     :local ids [/ip/route/find where comment="BlackHole" and routing-table="main"]
     :if ([:len $ids] > 0) do={
