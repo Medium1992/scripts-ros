@@ -9,7 +9,7 @@
     "lists/FWD_update_RU_list.rsc"="ad6ce4e956628aea4bbbf38c1886e298";
     "lists/IP_MihomoProxyRoS_list.rsc"="3d9cb910c8af38c46e19fd543b01a586";
     "lists/route_UP.rsc"="9b96513e0cc56dd7756ecb8b61223c3c";
-    "assets/changeDNS.rsc"="a9acbf9b15dbb623ef0f3cc9df4added";
+    "assets/changeDNS.rsc"="7e555aa8edefea6282bd8008d37bb7b1";
     "assets/repull.rsc"="b6b323c1d9876baa22b098d5c819d433";
     "assets/ca/sslcom-ecc-root.pem"="dd4f1313c25244f380fc807d5f173ef7"
 }
