@@ -10,7 +10,9 @@
 :global mSay
 :global mErr
 :global mYesNo
-:global mFallbackServers
+:global mStateGet
+:global mStateSet
+:global mRun
 
 $mHdr "Remove AdGuard Home"
 
@@ -18,14 +20,17 @@ $mHdr "Remove AdGuard Home"
     $mOk "cancelled"
 } else={
 
-:onerror e in={
-    :if ([/ip/dns/get servers] = "192.168.255.14") do={
-        /ip/dns/set use-doh-server="" verify-doh-cert=no
-        /ip/dns/set servers=$mFallbackServers
-        /ip/dns/cache/flush
-        $mOk ("resolver fell back to " . $mFallbackServers)
-    }
-} do={ $mErr "resolver" $e }
+# Hand the resolver back before touching the container: clearing state first
+# means the watchdog module restores the fallback while the container is still
+# alive, instead of the scheduler noticing a dead address mid-removal.
+:if ([$mStateGet "resolver"] = "AdGuardHome") do={
+    $mStateSet key="resolver" value=""
+    $mStateSet key="resolver_addr" value=""
+    $mRun "modules/45-resolver.rsc"
+} else={
+    $mOk "resolver was not pointed here"
+}
+
 
 :onerror e in={
     :local ids [/container/find where comment="AdGuardHome"]
