@@ -133,23 +133,41 @@ $mReloadStatus
 }
 
 # ==================================================================== menu
-# $mMenu is filled by status.rsc: an ordered array of "key" -> "module|title|state|detail"
+# Menu keys are the module numbers themselves. Typing 41 is no harder than
+# typing 5 and it removes the guesswork about which file a row runs.
 :global mDraw do={
     :global mMenu
     :put ""
     :put "=============================================="
     :foreach k,v in=$mMenu do={
-        :put (" " . $k . "  " . ($v->"state") . " " . ($v->"title") . [:pick "                    " 0 (20 - [:len ($v->"title")])] . ($v->"detail"))
+        :put (" " . $k . [:pick "   " 0 (3 - [:len $k])] . ($v->"state") . " " . ($v->"title") . [:pick "                    " 0 (20 - [:len ($v->"title")])] . ($v->"detail"))
     }
     :put ""
-    :put "  a  [    ] install everything (1..6)"
-    :put "  s  [    ] full status report"
-    :put "  x  [    ] uninstall"
-    :put "  q  [    ] quit"
+    :put "  a   [    ] install everything"
+    :put "  s   [    ] full status report"
+    :put "  x   [    ] remove everything"
+    :put "  q   [    ] quit"
     :put "=============================================="
 }
 
+# Picking a row asks what to do with it. Install and remove are the same
+# choice at the same place, so removing one piece never means hunting for a
+# separate uninstall flow -- and never means removing more than that piece.
+:global mAction do={
+    :global mRun
+    :put ""
+    :put ("  " . ($item->"title") . ": " . ($item->"state") . " " . ($item->"detail"))
+    :put "   1) install or repair"
+    :put "   2) remove"
+    :put "   3) back"
+    :local c [/terminal ask]
+    :if ($c = "1") do={ $mRun ("modules/" . ($item->"module")) ; :return true }
+    :if ($c = "2") do={ $mRun ("modules/" . ($item->"remove")) ; :return true }
+    :return false
+}
+
 :global mDraw
+:global mAction
 :global mReloadStatus
 
 :local running true
@@ -178,8 +196,7 @@ $mReloadStatus
                     :if ([:typeof $item] = "nothing") do={
                         :put "  unknown choice"
                     } else={
-                        $mRun ("modules/" . ($item->"module"))
-                        $mReloadStatus
+                        :if ([$mAction item=$item]) do={ $mReloadStatus }
                     }
                 }
             }
