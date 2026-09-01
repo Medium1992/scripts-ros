@@ -9,5 +9,6 @@
     "lists/FWD_update_RU_list.rsc"="ad6ce4e956628aea4bbbf38c1886e298";
     "lists/IP_MihomoProxyRoS_list.rsc"="3d9cb910c8af38c46e19fd543b01a586";
     "lists/route_UP.rsc"="9b96513e0cc56dd7756ecb8b61223c3c";
+    "assets/changeDNS.rsc"="f917f6f736b76544eb52dbe42f3222e4";
     "assets/repull.rsc"="b6b323c1d9876baa22b098d5c819d433"
 }

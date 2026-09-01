@@ -61,6 +61,22 @@ $mSay ""
     $mOk "proxy routes and routing table removed"
 } do={ $mErr "routes" $e }
 
+# The resolver watchdog goes before the container, or it will helpfully
+# switch DNS back the moment the container stops and leave the router
+# pointing at an address that no longer answers.
+:onerror e in={
+    :if ([:len [/system/script/find where name="changeDNS"]] > 0) do={
+        /system/scheduler/remove [find where name="DNSchange"]
+        /system/script/remove [find where name="changeDNS"]
+        :if ([/ip/dns/get servers] = "192.168.255.10") do={
+            /ip/dns/set servers="8.8.8.8" use-doh-server="https://dns.google/dns-query" verify-doh-cert=yes
+            /ip/dns/cache/flush
+            $mOk "resolver restored to DoH"
+        }
+        $mOk "changeDNS watchdog removed"
+    }
+} do={ $mErr "changeDNS" $e }
+
 :onerror e in={
     /ip/dns/forwarders/remove [find where name="MihomoProxyRoS" or name="DNSProxy"]
     /ip/dns/static/remove [find where forward-to="MihomoProxyRoS" or forward-to="DNSProxy"]
@@ -68,14 +84,14 @@ $mSay ""
 } do={ $mErr "dns" $e }
 
 :onerror e in={
-    /ip/address/remove [find where address="192.168.255.1/30" or address="192.168.255.5/30"]
+    /ip/address/remove [find where address="192.168.255.1/30" or address="192.168.255.9/30"]
     /interface/list/member/remove [find where interface="MihomoProxyRoS" or interface="DNSProxy"]
     /interface/veth/remove [find where name="MihomoProxyRoS" or name="DNSProxy"]
     $mOk "veth interfaces and addresses removed"
 } do={ $mErr "interfaces" $e }
 
 :onerror e in={
-    /system/scheduler/remove [find where name="update_FWD" or name="route_UP" or name="MihomoProxyRoS_repull"]
+    /system/scheduler/remove [find where name="update_FWD" or name="route_UP" or name="MihomoProxyRoS_repull" or name="DNSchange"]
     $mOk "schedulers removed"
 } do={ $mErr "schedulers" $e }
 
