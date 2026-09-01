@@ -35,7 +35,7 @@
 :if ($v6Off) do={ :set baseHave ($baseHave + 1) }
 :if ($wanList > 0 and $lanList > 0) do={ :set baseHave ($baseHave + 1) }
 :if ($blackhole >= 3) do={ :set baseHave ($baseHave + 1) }
-:local caCount [:len [/certificate/find where name~"^cacert.pem" or name~"_CA$"]]
+:local caCount [:len [/certificate/find where name~"^cacert.pem" or name~"_CA\$"]]
 
 :local baseDetail ("dns " . $dnsFwd . " fwd")
 :if ($ntpOn) do={

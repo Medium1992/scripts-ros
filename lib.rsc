@@ -12,8 +12,10 @@
 # the console, so no localisation happens at runtime -- see docs/language.md.
 
 # ---------------------------------------------------------------- settings
-# Overridable before load: point mBase at a local HTTP server to test without
-# pushing to GitHub, e.g. :global mBase "http://192.168.88.10:8000"
+# install.rsc sets mBase before loading this file. The fallback here is only
+# for loading the library on its own; it deliberately does NOT honour a
+# leftover mBase, because globals persist in /system/script/environment and a
+# stale one from an earlier session would quietly redirect every download.
 :global mBase
 :if ([:typeof $mBase] = "nothing") do={
     :global mBranch
