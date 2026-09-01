@@ -7,6 +7,7 @@
 :global mOk
 :global mNeed
 :global mErr
+:global mFallbackServers
 
 $mHdr "DNS"
 
@@ -45,10 +46,19 @@ $mHdr "DNS"
 } do={ $mErr "trust-store" $e }
 
 :onerror e in={
+    # No public DoH here, by name or by IP. Google, Cloudflare and Quad9
+    # DoH are blocked in the target region, and pointing at them by raw
+    # address stopped working too. This setting is what the router
+    # resolves with BEFORE any proxy exists -- during this very install --
+    # so it has to be something that answers on a plain connection.
+    #
+    # The DoH forwarders defined above stay useful: traffic through them
+    # goes out via the proxy once it is up, and row 40 or 41 can take the
+    # resolver over later. This is only the floor.
     /ip/dns/set allow-remote-requests=yes cache-max-ttl=1d cache-size=15000KiB \
         doh-max-concurrent-queries=500 doh-max-server-connections=10 \
-        servers=8.8.8.8 use-doh-server=https://8.8.8.8/dns-query verify-doh-cert=yes
-    $mOk "resolver settings"
+        use-doh-server="" verify-doh-cert=no servers=$mFallbackServers
+    $mOk ("resolver settings, upstream " . $mFallbackServers)
 } do={ $mErr "resolver" $e }
 
 # Bootstrap records. Without these the router cannot resolve the DoH hostname
@@ -76,8 +86,8 @@ $mHdr "DNS"
 # NTP hostnames must resolve through plain DNS, not through the proxy, or the
 # clock never sets and every TLS handshake afterwards fails on cert validity.
 :onerror e in={
-    :if ([$mNeed id=[/ip/dns/static/find where name="pool.ntp.org"] name="static pool.ntp.org -> Google8"]) do={
-        /ip/dns/static/add name=pool.ntp.org forward-to=Google8 match-subdomain=yes type=FWD
-        $mOk "static pool.ntp.org -> Google8"
+    :if ([$mNeed id=[/ip/dns/static/find where name="pool.ntp.org"] name="static pool.ntp.org -> Fallback"]) do={
+        /ip/dns/static/add name=pool.ntp.org forward-to=Fallback match-subdomain=yes type=FWD
+        $mOk "static pool.ntp.org -> Fallback"
     }
 } do={ $mErr "ntp forward" $e }

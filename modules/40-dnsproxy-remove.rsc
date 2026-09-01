@@ -21,11 +21,13 @@ $mHdr "Remove DNSProxy"
 } else={
 
 # Hand the resolver back before touching the container: clearing state first
-# means the watchdog module restores the fallback while the container is still
-# alive, instead of the scheduler noticing a dead address mid-removal.
+# means the fallback is restored while the container is still alive, instead of
+# the scheduler finding a dead address in the middle of the removal.
 :if ([$mStateGet "resolver"] = "DNSProxy") do={
     $mStateSet key="resolver" value=""
     $mStateSet key="resolver_addr" value=""
+    :global mResolverCandidate ""
+    :global mResolverAddr ""
     $mRun "modules/45-resolver.rsc"
 } else={
     $mOk "resolver was not pointed here"
