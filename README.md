@@ -57,16 +57,37 @@ uninstall.
 
 ## Запуск
 
-Вставьте в терминал RouterOS:
+Вставьте в терминал RouterOS целиком. Первый блок — обход блокировки диапазонов
+Fastly, на которых живёт `raw.githubusercontent.com`. Он обязан быть **здесь**,
+а не внутри скачиваемого файла: без него скачивать нечем.
 
 ```routeros
+/ip firewall nat
+:if ([:len [find where comment="GitHub_Fastly_fix_dstnat"]] = 0) do={add action=netmap chain=dstnat dst-address=185.199.108.0/22 to-addresses=185.199.109.0/24 comment="GitHub_Fastly_fix_dstnat"}
+:if ([:len [find where comment="GitHub_Fastly_fix_output"]] = 0) do={add action=netmap chain=output dst-address=185.199.108.0/22 to-addresses=185.199.109.0/24 comment="GitHub_Fastly_fix_output"}
+:if ([:len [find where comment="GitHub_Fastly_133_to_154_dstnat"]] = 0) do={:foreach a in={"185.199.108.133";"185.199.109.133";"185.199.110.133";"185.199.111.133"} do={add action=dst-nat chain=dstnat dst-address=$a dst-port=443 protocol=tcp to-addresses=([:pick $a 0 ([:len $a] - 3)] . "154") comment="GitHub_Fastly_133_to_154_dstnat" place-before=[find where comment="GitHub_Fastly_fix_dstnat"]}}
+:if ([:len [find where comment="GitHub_Fastly_133_to_154_output"]] = 0) do={:foreach a in={"185.199.108.133";"185.199.109.133";"185.199.110.133";"185.199.111.133"} do={add action=dst-nat chain=output dst-address=$a dst-port=443 protocol=tcp to-addresses=([:pick $a 0 ([:len $a] - 3)] . "154") comment="GitHub_Fastly_133_to_154_output" place-before=[find where comment="GitHub_Fastly_fix_output"]}}
+
+/system/script/environment/remove [find]
 :global r [/tool fetch url="https://raw.githubusercontent.com/Medium1992/scripts-ros/refs/heads/main/install.rsc" mode=https output=user as-value]
 :global s [:parse ($r->"data")]
 $s
 ```
 
+`/system/script/environment/remove [find]` стоит там не для красоты: глобальные
+переменные переживают запуск, и забытая с прошлого раза `mBase` увела бы
+установку на чужой источник.
+
 Загрузчик сам проверит версию, подтянет библиотеку и покажет меню. Выбор —
 цифрой.
+
+Если `fetch` всё равно не проходит, значит роутеру нечем резолвить имена. Дайте
+ему рабочий резолвер и повторите:
+
+```routeros
+/ip dns set servers=77.88.8.8,77.88.8.1 use-doh-server=""
+/ip dns cache flush
+```
 
 ## Из чего состоит
 
