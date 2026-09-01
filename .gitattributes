@@ -1,0 +1,3 @@
+# RouterOS reads these over HTTP; keep LF so :parse never sees stray CR
+*.rsc text eol=lf
+*.md  text eol=lf
