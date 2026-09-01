@@ -12,11 +12,11 @@
 
 $mHdr "Clear proxy link and subscription"
 
-:if ([$mYesNo prompt="Clear LINK1 and SUB_LINK1?"] = false) do={
+:if ([$mYesNo prompt="Clear LINK0/LINK1 and SUB_LINK0/SUB_LINK1?"] = false) do={
     $mOk "cancelled"
 } else={
     :onerror e in={
-        :foreach k in={"LINK1";"SUB_LINK1"} do={
+        :foreach k in={"LINK0";"SUB_LINK0";"LINK1";"SUB_LINK1"} do={
             :local ids [/container/envs/find where key=$k and list="MihomoProxyRoS"]
             :if ([:len $ids] > 0) do={
                 /container/envs/remove $ids

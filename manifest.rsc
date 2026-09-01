@@ -10,6 +10,6 @@
     "lists/IP_MihomoProxyRoS_list.rsc"="3d9cb910c8af38c46e19fd543b01a586";
     "lists/route_UP.rsc"="9b96513e0cc56dd7756ecb8b61223c3c";
     "assets/changeDNS.rsc"="1ff81467e3e13a252069441d79ef788f";
-    "assets/repull.rsc"="b6b323c1d9876baa22b098d5c819d433";
+    "assets/repull.rsc"="4a3edcce441b318c8a897812de6a7e79";
     "assets/ca/sslcom-ecc-root.pem"="dd4f1313c25244f380fc807d5f173ef7"
 }

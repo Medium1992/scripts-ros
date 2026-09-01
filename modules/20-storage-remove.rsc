@@ -22,13 +22,16 @@ $mHdr "Remove container storage"
     :if ([$mYesNo prompt="Remove repull job, RAM disks and the stored slot choice?"] = false) do={
         $mOk "cancelled"
     } else={
+        # Any repull jobs belong to their containers and are removed with them
+        # (rows 30, 40, 41). If containers are gone and jobs are left, they are
+        # orphans, so sweep them.
         :onerror e in={
-            :local sc [/system/script/find where name="MihomoProxyRoS_repull"]
-            :local sh [/system/scheduler/find where name="MihomoProxyRoS_repull"]
-            :if ([:len $sc] > 0 or [:len $sh] > 0) do={
+            :local sh [/system/scheduler/find where comment="sros:repull"]
+            :local sc [/system/script/find where comment="sros:repull"]
+            :if ([:len $sh] > 0 or [:len $sc] > 0) do={
                 /system/scheduler/remove $sh
                 /system/script/remove $sc
-                $mOk "repull job removed"
+                $mOk "orphaned repull job(s) removed"
             }
         } do={ $mErr "repull" $e }
 
