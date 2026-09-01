@@ -22,6 +22,7 @@
 :global mErr
 :global mContState
 :global mStateGet
+:global mRepull
 :global mStateSet
 :global mRun
 :global mYesNo
@@ -87,6 +88,8 @@ $mHdr "AdGuard Home"
 } else={
     $mOk "container entry already present"
 }
+
+$mRepull name="AdGuardHome" image="registry-1.docker.io/adguard/adguardhome"     iface="AdGuardHome" envs="" mounts="AdGuardHome" cmd=""
 
 :local waited 0
 :local done false

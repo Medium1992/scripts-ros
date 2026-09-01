@@ -15,7 +15,6 @@
 :global mErr
 :global mAsk
 :global mYesNo
-:global mFetch
 :global mStateSet
 
 $mHdr "Container storage"
@@ -108,41 +107,13 @@ $mOk ("slot " . $chosen . " (" . $chosenKind . "), container path '" . $path . "
     $mOk "tmpfs ContainerTemp already present"
 }
 
-# --------------------------------------------------- repull, tmpfs only
+# Nothing about any particular container belongs here. A tmpfs slot means the
+# containers that land on it need a startup job to come back after a reboot,
+# but that job is the container's own business -- rows 30, 40 and 41 install it
+# for themselves, and a router with no containers carries none.
 :if ($chosenKind = "tmpfs") do={
     $mSay ""
-    $mSay "  tmpfs is volatile: installing the startup repull job"
-    :local body [$mFetch "assets/repull.rsc"]
-    :if ([:len $body] = 0) do={
-        $mErr "repull" "could not fetch assets/repull.rsc"
-    } else={
-        :onerror e in={
-            :if ([:len [/system/script/find where name="MihomoProxyRoS_repull"]] = 0) do={
-                /system/script/add name=MihomoProxyRoS_repull source=$body comment="sros:repull"
-            } else={
-                /system/script/set [find where name="MihomoProxyRoS_repull"] source=$body
-            }
-            $mOk "script MihomoProxyRoS_repull"
-            :if ([:len [/system/scheduler/find where name="MihomoProxyRoS_repull"]] = 0) do={
-                /system/scheduler/add name=MihomoProxyRoS_repull start-time=startup \
-                    on-event="/system/script/run MihomoProxyRoS_repull" comment="sros:repull"
-            } else={
-                /system/scheduler/set [find where name="MihomoProxyRoS_repull"] \
-                    start-time=startup on-event="/system/script/run MihomoProxyRoS_repull"
-            }
-            $mOk "scheduler MihomoProxyRoS_repull at startup"
-        } do={ $mErr "repull install" $e }
-    }
-} else={
-    :onerror e in={
-        :local s [/system/script/find where name="MihomoProxyRoS_repull"]
-        :local h [/system/scheduler/find where name="MihomoProxyRoS_repull"]
-        :if ([:len $s] > 0 or [:len $h] > 0) do={
-            /system/script/remove $s
-            /system/scheduler/remove $h
-            $mOk "removed repull job (storage is persistent)"
-        }
-    } do={ $mErr "repull cleanup" $e }
+    $mSay "  note: tmpfs is volatile. Containers installed on it will each get"
+    $mSay "        a startup job that pulls them again after a reboot."
 }
-
 }

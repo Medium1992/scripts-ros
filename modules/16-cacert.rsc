@@ -56,8 +56,15 @@ $mSay ""
 $mSay "   1) targeted  just the roots this project needs, pinned in the repo"
 $mSay "   2) bundle    the whole Mozilla set from curl.se, about 120 entries"
 $mSay "   3) skip"
-$mSay "  choose:"
-:local pick [$mAsk default="3"]
+$mSay "  choose, or Enter for 1:"
+# Enter used to mean skip, which is the one answer that silently does nothing
+# and leaves Cloudflare failing its certificate check with no explanation.
+:local pick [$mAsk default="1"]
+:if ($pick != "1" and $pick != "2" and $pick != "3") do={
+    $mSay ("  '" . $pick . "' is not one of the three, taking 1")
+    :set pick "1"
+}
+$mSay ("  -> " . $pick)
 
 # Import a PEM that is already on the router, then give it a name worth reading
 # in /certificate print.
@@ -144,7 +151,7 @@ $mSay "  choose:"
         }
     }
 } else={
-    $mOk "skipped"
+    $mOk "skipped, Cloudflare will keep failing its certificate check"
 }
 }
 

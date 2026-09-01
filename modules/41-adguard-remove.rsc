@@ -38,6 +38,12 @@ $mHdr "Remove AdGuard Home"
 
 
 :onerror e in={
+    :local job ("AdGuardHome_repull")
+    :if ([:len [/system/script/find where name=$job]] > 0) do={
+        /system/scheduler/remove [find where name=$job]
+        /system/script/remove [find where name=$job]
+        $mOk ($job . " removed")
+    }
     :local ids [/container/find where comment="AdGuardHome"]
     :if ([:len $ids] > 0) do={
         :onerror e2 in={ /container/stop $ids } do={}

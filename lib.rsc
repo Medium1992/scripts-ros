@@ -191,6 +191,61 @@
     :return [:convert $1 transform=md5 to=hex]
 }
 
+# ------------------------------------------------------------- repull jobs
+# A container on a tmpfs slot is gone after a reboot, so it needs a startup job
+# that pulls it again. That job belongs to the container, not to the storage
+# step -- a router with no containers should not carry one.
+#
+# Called with the container's own parameters; installs the job when the chosen
+# slot is volatile and removes it when it is not, so the two states never
+# coexist and nothing has to remember which was set up last.
+:global mRepull do={
+    :global mFetch
+    :global mOk
+    :global mErr
+    :global mStateGet
+    :local job ($name . "_repull")
+
+    :if ([$mStateGet "fs"] != "tmpfs") do={
+        :local sc [/system/script/find where name=$job]
+        :local sh [/system/scheduler/find where name=$job]
+        :if ([:len $sc] > 0 or [:len $sh] > 0) do={
+            /system/scheduler/remove $sh
+            /system/script/remove $sc
+            $mOk ($job . " removed, storage is persistent")
+        }
+        :return true
+    }
+
+    :local body [$mFetch "assets/repull.rsc"]
+    :if ([:len $body] = 0) do={
+        $mErr $job "could not fetch assets/repull.rsc"
+        :return false
+    }
+    :local prefix (":global rcName \"" . $name . "\"
+" .         ":global rcImage \"" . $image . "\"
+" .         ":global rcInterface \"" . $iface . "\"
+" .         ":global rcEnvlists \"" . $envs . "\"
+" .         ":global rcMountlists \"" . $mounts . "\"
+" .         ":global rcCmd \"" . $cmd . "\"
+")
+    :onerror e in={
+        :if ([:len [/system/script/find where name=$job]] = 0) do={
+            /system/script/add name=$job source=($prefix . $body) comment="sros:repull"
+        } else={
+            /system/script/set [find where name=$job] source=($prefix . $body)
+        }
+        :if ([:len [/system/scheduler/find where name=$job]] = 0) do={
+            /system/scheduler/add name=$job start-time=startup comment="sros:repull"                 on-event=("/system/script/run " . $job)
+        }
+        $mOk ($job . " installed (tmpfs is volatile)")
+    } do={
+        $mErr $job $e
+        :return false
+    }
+    :return true
+}
+
 # ------------------------------------------------------------------ network
 # Fetch a resource. Relative names resolve against $mBase, absolute URLs pass
 # through. Returns "" on failure -- callers must check, never assume.

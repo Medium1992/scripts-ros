@@ -219,6 +219,15 @@ $mReloadStatus
 # useless when you are staring at a prompt. So the position is printed first
 # and both are accepted: on a menu of eight rows, "4" and "30" mean the same
 # thing and cannot collide, because no position ever reaches 10.
+# A module can print thirty lines and the menu redraws immediately, so the
+# result scrolls away before it can be read -- and the next prompt swallows a
+# keystroke meant for the last one. Stop and wait.
+:global mPause do={
+    :put ""
+    :put "  ---- press Enter to return to the menu ----"
+    :local ignored [/terminal ask]
+}
+
 :global mDraw do={
     :global mMenu
     :global mPad
@@ -240,18 +249,20 @@ $mReloadStatus
 
 :global mAction do={
     :global mRun
+    :global mPause
     :put ""
     :put ("  " . ($item->"title") . ": " . ($item->"state") . " " . ($item->"detail"))
     :put "   1) install or repair"
     :put "   2) remove"
     :put "   3) back"
     :local c [/terminal ask]
-    :if ($c = "1") do={ $mRun ("modules/" . ($item->"module")) ; :return true }
-    :if ($c = "2") do={ $mRun ("modules/" . ($item->"remove")) ; :return true }
+    :if ($c = "1") do={ $mRun ("modules/" . ($item->"module")) ; $mPause ; :return true }
+    :if ($c = "2") do={ $mRun ("modules/" . ($item->"remove")) ; $mPause ; :return true }
     :return false
 }
 
 :global mDraw
+:global mPause
 :global mAction
 :global mReloadStatus
 
@@ -266,15 +277,18 @@ $mReloadStatus
     } else={
         :if ($pick = "s") do={
             $mRun "modules/99-status.rsc"
+            $mPause
         } else={
             :if ($pick = "x") do={
                 $mRun "modules/90-uninstall.rsc"
+                $mPause
                 $mReloadStatus
             } else={
                 :if ($pick = "a") do={
                     :foreach k,v in=$mMenu do={
                         $mRun ("modules/" . ($v->"module"))
                     }
+                    $mPause
                     $mReloadStatus
                 } else={
                     # Accept the printed position as well as the module

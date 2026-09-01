@@ -23,6 +23,7 @@
 :global mFetch
 :global mContState
 :global mStateGet
+:global mRepull
 :global mStateSet
 :global mRun
 
@@ -72,6 +73,8 @@ $mHdr "DNSProxy"
 } else={
     $mOk "container entry already present"
 }
+
+$mRepull name="DNSProxy" image="ghcr.io/medium1992/dns-proxy-ros" iface="DNSProxy"     envs="DNSProxy" mounts=""     cmd="--cache --hosts-files=/hosts --ipv6-disabled --upstream https://dns.google/dns-query --upstream https://cloudflare-dns.com/dns-query --upstream https://dns.quad9.net/dns-query --upstream-mode=parallel"
 
 # A failed extraction leaves the container in a state that starting will never
 # fix; only a repull clears it, so watch for it instead of retrying forever.
