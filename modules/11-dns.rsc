@@ -8,6 +8,7 @@
 :global mNeed
 :global mErr
 :global mFallbackServers
+:global mSay
 
 $mHdr "DNS"
 
@@ -61,6 +62,18 @@ $mHdr "DNS"
     }
     $mOk ($made . " forwarder(s) added")
 } do={ $mErr "forwarders" $e }
+
+# DoH over HTTP/2 arrived in 7.23 for ARM64 and x86/CHR only. Elsewhere DoH is
+# HTTP/1.1, and an endpoint that insists on HTTP/2 will never answer -- which
+# looks like a broken forwarder rather than an unsupported platform. Say so,
+# and point at the module that measures it instead of guessing per provider.
+:local arch [/system/resource/get architecture-name]
+:if ($arch != "arm64" and $arch != "x86_64") do={
+    $mSay ""
+    $mSay ("  [ !! ] " . $arch . ": HTTP/2 for DoH is ARM64 and x86/CHR only.")
+    $mSay "         Some DoH forwarders above may never answer here."
+    $mSay "         Run row 17 to find out which, and prefer the _udp variants."
+}
 
 # builtin-trust-store is scoped per service, and a service left out of it has
 # no root certificates at all. "fetch" belongs here as much as the other two:
