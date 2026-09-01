@@ -71,11 +71,13 @@
             :local fs [/disk/get $d fs]
             :set storDetail ($slot . " " . $fs . ", " . ([/disk/get $d free] / 1048576) . " MiB free")
             :if ($fs = "tmpfs") do={
-                :if ([:len [/system/scheduler/find where name="MihomoProxyRoS_repull"]] = 0) do={
+                :local jobs [:len [/system/scheduler/find where comment="sros:repull"]]
+                :local conts [:len [/container/find]]
+                :if ($conts > 0 and $jobs = 0) do={
                     :set storHave 1
-                    :set storDetail ($storDetail . ", NO repull")
+                    :set storDetail ($storDetail . ", NO repull job")
                 } else={
-                    :set storDetail ($storDetail . ", repull ok")
+                    :if ($jobs > 0) do={ :set storDetail ($storDetail . ", " . $jobs . " repull job(s)") }
                 }
             }
         }

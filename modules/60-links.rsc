@@ -1,63 +1,66 @@
 # scripts-ros :: modules/60-links.rsc
-# Menu entry 6. The proxy link and the subscription URL.
+# Creates the proxy link and subscription templates.
 #
-# Split out from the environment module on purpose: changing a subscription is
-# the single most frequent reason to come back to this installer, and it should
-# not require touching anything else. Re-run this alone, restart the container,
-# done.
+# It does NOT ask for a vless:// link. Typing one into a RouterOS terminal is
+# unpleasant and error-prone -- they are long, they contain characters the
+# console is picky about, and a typo is invisible. What it does instead is put
+# two empty, disabled entries in place:
 #
-# Interactive: needs a real terminal, never run it from a scheduler.
+#   LINK0      disabled  template for LINK1, LINK2, ...
+#   SUB_LINK0  disabled  template for SUB_LINK1, ...
+#
+# Disabled means mihomo never reads them, so they sit there harmlessly as a
+# reminder of the exact key names. Fill one in and enable it -- in Winbox,
+# where pasting a link actually works -- or set the real key from the console
+# with the command printed below.
+#
+# Numbering starts at 1 for live entries; 0 is deliberately outside that range.
 
 :global mHdr
 :global mOk
 :global mSay
 :global mErr
-:global mAsk
+:global mNeed
 
 $mHdr "Proxy link and subscription"
 
-# key | prompt | what a valid value looks like
-:local fields {
-    {"k"="LINK1";     "p"="proxy link";  "hint"="vless:// vmess:// ss:// trojan://"};
-    {"k"="SUB_LINK1"; "p"="subscription"; "hint"="http:// or https:// URL"}
-}
-
-:foreach f in=$fields do={
-    :local key ($f->"k")
-    :local cur ""
-    :onerror e in={
-        :set cur [/container/envs/get [find where key=$key and list="MihomoProxyRoS"] value]
-    } do={ :set cur "" }
-
-    $mSay ""
-    :if ([:len $cur] > 1) do={
-        $mSay ("  current " . $key . ": " . [:pick $cur 0 32] . "...")
-    } else={
-        $mSay ("  current " . $key . ": (empty)")
+:onerror e in={
+    :foreach k in={"LINK0";"SUB_LINK0"} do={
+        :if ([$mNeed id=[/container/envs/find where key=$k and list="MihomoProxyRoS"] name=("template " . $k)]) do={
+            /container/envs/add key=$k list=MihomoProxyRoS value="" disabled=yes
+            $mOk ("template " . $k . " (empty, disabled)")
+        }
     }
-    $mSay ("  enter " . ($f->"p") . " (" . ($f->"hint") . "), or Enter to keep:")
+} do={ $mErr "templates" $e }
 
-    :local input [$mAsk default=""]
-    :if ([:len $input] = 0) do={
-        $mOk ($key . " unchanged")
-    } else={
-        :onerror e in={
-            :if ([:len [/container/envs/find where key=$key and list="MihomoProxyRoS"]] = 0) do={
-                /container/envs/add key=$key list=MihomoProxyRoS value=$input
-                $mOk ($key . " set")
-            } else={
-                /container/envs/set [find where key=$key and list="MihomoProxyRoS"] value=$input
-                $mOk ($key . " updated")
-            }
-        } do={ $mErr $key $e }
+# Report what is actually configured, so it is clear whether anything is set.
+:local live 0
+:foreach k in={"LINK1";"SUB_LINK1"} do={
+    :local ids [/container/envs/find where key=$k and list="MihomoProxyRoS" and !disabled]
+    :if ([:len $ids] > 0) do={
+        :local v [/container/envs/get $ids value]
+        :if ([:len $v] > 1) do={
+            $mOk ($k . " is set: " . [:pick $v 0 24] . "...")
+            :set live ($live + 1)
+        }
     }
 }
 
-# An env change only reaches mihomo through a restart, and forgetting that is
-# the classic "I changed the link and nothing happened".
+$mSay ""
+:if ($live = 0) do={
+    $mSay "  no proxy link configured yet. Either enable LINK0 and paste your"
+    $mSay "  link into it in Winbox, or set the real key from here:"
+} else={
+    $mSay "  to change it later:"
+}
+# Printed without quotes on purpose: escaped quotes inside a string are a
+# parse hazard here, and RouterOS accepts these values unquoted anyway.
+$mSay "  /container/envs/add key=LINK1 list=MihomoProxyRoS value=vless://..."
+$mSay "  /container/envs/set [find where key=LINK1 and list=MihomoProxyRoS] value=vless://..."
+$mSay "  supported: vless:// vmess:// ss:// trojan://  and SUB_LINK1 for a subscription URL"
+
 :if ([:len [/container/find where comment="MihomoProxyRoS" and running]] > 0) do={
     $mSay ""
-    $mSay "  container is running with the old values."
-    $mSay "  restart it to apply: /container/stop [find where comment=\"MihomoProxyRoS\"]"
-    $mSay "                       /container/start [find where comment=\"MihomoProxyRoS\"]"
+    $mSay "  the container is running with the values it started with;"
+    $mSay "  restart it after changing them."
 }

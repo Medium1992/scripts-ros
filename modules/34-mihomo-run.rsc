@@ -13,6 +13,7 @@
 :global mNeed
 :global mErr
 :global mStateGet
+:global mRepull
 :global mContState
 
 $mHdr "MihomoProxyRoS container"
@@ -62,6 +63,8 @@ $mSay ("  root-dir: " . $rootDir)
 
 # Pulling can take several minutes on a slow link. Poll rather than guess, and
 # report the extraction state so a stuck pull is visible instead of silent.
+$mRepull name="MihomoProxyRoS" image="ghcr.io/medium1992/mihomo-proxy-ros"     iface="MihomoProxyRoS" envs="MihomoProxyRoS" mounts="MihomoProxyRoS" cmd=""
+
 :local waited 0
 :local done false
 :while ($done = false and $waited < 600) do={
