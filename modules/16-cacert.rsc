@@ -35,6 +35,7 @@
 :global mErr
 :global mAsk
 :global mFetch
+:global mSkip
 
 $mHdr "Root certificates"
 
@@ -49,22 +50,33 @@ $mHdr "Root certificates"
     :set haveTargeted ($haveTargeted + [:len [/certificate/find where name=($t->"as")]])
 }
 
-$mSay ""
-:if ($haveBundle > 0) do={ $mOk ($haveBundle . " certificate(s) from the Mozilla bundle already imported") }
-:if ($haveTargeted > 0) do={ $mOk ($haveTargeted . " targeted root(s) already imported") }
-
-$mSay "   1) targeted  just the roots this project needs, pinned in the repo"
-$mSay "   2) bundle    the whole Mozilla set from curl.se, about 120 entries"
-$mSay "   3) skip"
-$mSay "  choose, or Enter for 1:"
-# Enter used to mean skip, which is the one answer that silently does nothing
-# and leaves Cloudflare failing its certificate check with no explanation.
-:local pick [$mAsk default="1"]
-:if ($pick != "1" and $pick != "2" and $pick != "3") do={
-    $mSay ("  '" . $pick . "' is not one of the three, taking 1")
-    :set pick "1"
+# Nothing to ask when there is nothing missing. An installer that offers a
+# choice and then answers "already present" to every option is just noise.
+:local pick "3"
+:if ($haveTargeted > 0 or $haveBundle > 0) do={
+    :if ($haveBundle > 0) do={
+        $mSkip ($haveBundle . " root(s) from the Mozilla bundle already imported")
+    } else={
+        $mSkip ($haveTargeted . " targeted root(s) already imported, nothing missing")
+    }
+} else={
+    $mSay ""
+    $mSay "  RouterOS cannot verify some perfectly valid certificates -- the"
+    $mSay "  Cloudflare chain among them -- because the issuing CA is not in"
+    $mSay "  the set it ships. Two ways to fix that:"
+    $mSay ""
+    $mSay "   1) targeted  just the roots this project needs, pinned in the repo"
+    $mSay "   2) bundle    the whole Mozilla set from curl.se, about 120 entries"
+    $mSay "   3) skip      leave Cloudflare failing its certificate check"
+    $mSay "  choose, or Enter for 1:"
+    :set pick [$mAsk default="1"]
+    :if ([:len $pick] = 0) do={ :set pick "1" }
+    :if ($pick != "1" and $pick != "2" and $pick != "3") do={
+        $mSay ("  '" . $pick . "' is not one of the three, taking 1")
+        :set pick "1"
+    }
+    $mSay ("  -> " . $pick)
 }
-$mSay ("  -> " . $pick)
 
 # Import a PEM that is already on the router, then give it a name worth reading
 # in /certificate print.
