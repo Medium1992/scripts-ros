@@ -6,17 +6,16 @@
 :global mHdr
 :global mOk
 :global mErr
+:global mSkip
 
 $mHdr "IPv6"
 
-:onerror e in={
-    /ipv6/nd/set [find where default=yes] advertise-dns=yes disabled=yes
-    $mOk "router advertisements off"
-} do={ $mErr "ipv6 nd" $e }
-
-:onerror e in={
-    /ipv6/settings/set accept-redirects=no accept-router-advertisements=no \
-        accept-router-advertisements-on=none allow-fast-path=no \
-        disable-ipv6=yes disable-link-local-address=yes forward=no
-    $mOk "ipv6 disabled"
-} do={ $mErr "ipv6 settings" $e }
+:if ([/ipv6/settings/get disable-ipv6] = true) do={
+    $mSkip "ipv6 already disabled"
+} else={
+    :onerror e in={
+        /ipv6/nd/set [find where default=yes] advertise-dns=yes disabled=yes
+        /ipv6/settings/set accept-redirects=no accept-router-advertisements=no             accept-router-advertisements-on=none allow-fast-path=no             disable-ipv6=yes disable-link-local-address=yes forward=no
+        $mOk "ipv6 disabled, router advertisements off"
+    } do={ $mErr "ipv6" $e }
+}

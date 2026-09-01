@@ -35,6 +35,11 @@ $mHdr "Network base"
         :local n [/interface/get $i name]
         # Skip our own container veths and anything already in this list.
         :local skip false
+        :local t [/interface/get $i type]
+        # Loopback is never an uplink or a client network, and a wifi radio is
+        # normally inside the bridge rather than a list member of its own.
+        :if ($t = "loopback") do={ :set skip true }
+        :if ([:len [/interface/bridge/port/find where interface=$n]] > 0) do={ :set skip true }
         :if ([:len [/interface/veth/find where name=$n]] > 0) do={ :set skip true }
         :if ([:len [/interface/list/member/find where list=$list and interface=$n]] > 0) do={ :set skip true }
         :if ($skip = false) do={
