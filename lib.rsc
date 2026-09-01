@@ -22,14 +22,20 @@
 }
 
 # Where the resolver goes when a DNS container is stopped or removed. Plain
-# DNS on 53 rather than DoH on purpose: Google, Cloudflare and Quad9 DoH are
-# blocked here, so a DoH fallback is not a fallback at all, and this is the one
-# path that has to work with no container and no proxy running.
-#   194.85.254.37  NSDI
-#   77.88.8.8      Yandex
+# DNS on 53 rather than DoH on purpose: this is the one path that has to work
+# with no container, no proxy and no imported roots.
+#
+# Order matters and is measured. NSDI (194.85.254.37) answers SERVFAIL for
+# every foreign name -- github.com, raw.githubusercontent.com, ghcr.io and
+# curl.se all fail against it -- and RouterOS treats that failure as final
+# rather than trying the next server. Putting it first breaks this installer,
+# the container image pulls and the CA bundle download. Yandex resolves all of
+# them, so it leads and NSDI follows as domestic redundancy.
+#   77.88.8.8, 77.88.8.1  Yandex
+#   194.85.254.37         NSDI, domestic names only
 # assets/changeDNS.rsc carries the same list inline -- it runs from the
 # scheduler without the library loaded.
-:global mFallbackServers "194.85.254.37,77.88.8.8"
+:global mFallbackServers "77.88.8.8,77.88.8.1,194.85.254.37"
 
 # Tag written into the comment of every object we create, so uninstall and the
 # status checks can find our work without a hardcoded inventory.
