@@ -38,7 +38,7 @@ $mHdr "Remove base settings"
 # Only the forwarders this project defines. A forwarder the operator added by
 # hand has a name that is not on this list and survives.
 :onerror e in={
-    :local names {"Google";"CloudFlare";"Quad9";"XBOX";"XBOX-DOH";"Yandex";"Google8";"NSDI";"Fallback"}
+    :local names {"Google";"Google-Host";"CloudFlare";"CloudFlare-Host";"Quad9";"Quad9-Host";"XBOX";"XBOX-DOH";"Yandex";"Google8";"NSDI";"Fallback"}
     :local n 0
     :foreach f in=$names do={
         :local ids [/ip/dns/forwarders/find where name=$f]
