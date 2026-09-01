@@ -95,14 +95,26 @@
 :if ($mhEnv >= 10) do={ :set mhHave ($mhHave + 1) }
 :if ($mhRun > 0) do={ :set mhHave ($mhHave + 1) }
 
+:local mhMode [$mStateGet "mihomo_mode"]
+:if ([:len $mhMode] = 0) do={ :set mhMode "?" }
+
+# In container-only mode the mangle rules are absent by design, so counting
+# them as missing would show a permanent [ ~~ ] on a correct install.
+:if ($mhMode = "container") do={
+    :set mhHave 0
+    :if ($mhVeth > 0) do={ :set mhHave ($mhHave + 2) }
+    :if ($mhEnv >= 10) do={ :set mhHave ($mhHave + 2) }
+    :if ($mhRun > 0) do={ :set mhHave ($mhHave + 1) }
+}
+
 :local mhDetail ""
 :if ($mhCont = 0) do={
-    :set mhDetail ("not pulled, " . $mhEnv . " envs, " . $mhMangle . " mangle")
+    :set mhDetail ($mhMode . ", not pulled, " . $mhEnv . " envs")
 } else={
     :if ($mhRun > 0) do={
-        :set mhDetail ("running, " . $mhEnv . " envs")
+        :set mhDetail ($mhMode . ", running, " . $mhEnv . " envs")
     } else={
-        :set mhDetail ("STOPPED, " . $mhEnv . " envs")
+        :set mhDetail ($mhMode . ", STOPPED, " . $mhEnv . " envs")
     }
 }
 

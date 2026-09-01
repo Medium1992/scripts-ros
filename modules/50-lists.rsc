@@ -31,12 +31,55 @@
 $mHdr "Resource lists"
 
 # name | engine file | companion list script | companion source file
+# n  installed script name          l   companion list script
+# e  engine file in this repository  ls  companion source file
+# fwd  true when the list forwards domains to a DNS forwarder, and the
+#      operator should get to choose which one
+# def  the forwarder to offer first
 :local managed {
-    {"n"="FWD_update";        "e"="lists/engine.rsc";   "l"="FWD_update_list";        "ls"="lists/FWD_update_list.rsc"};
-    {"n"="FWD_update_RU";     "e"="lists/engine.rsc";   "l"="FWD_update_RU_list";     "ls"="lists/FWD_update_RU_list.rsc"};
-    {"n"="IP_MihomoProxyRoS"; "e"="lists/engine.rsc";   "l"="IP_MihomoProxyRoS_list"; "ls"="lists/IP_MihomoProxyRoS_list.rsc"};
-    {"n"="route_UP";          "e"="lists/route_UP.rsc"; "l"="";                       "ls"=""}
+    {"n"="FWD_update";        "e"="lists/engine.rsc";   "l"="FWD_update_list";        "ls"="lists/FWD_update_list.rsc";        "fwd"=true;  "def"="MihomoProxyRoS"};
+    {"n"="FWD_update_RU";     "e"="lists/engine.rsc";   "l"="FWD_update_RU_list";     "ls"="lists/FWD_update_RU_list.rsc";     "fwd"=true;  "def"="Yandex"};
+    {"n"="IP_MihomoProxyRoS"; "e"="lists/engine.rsc";   "l"="IP_MihomoProxyRoS_list"; "ls"="lists/IP_MihomoProxyRoS_list.rsc"; "fwd"=false; "def"=""};
+    {"n"="route_UP";          "e"="lists/route_UP.rsc"; "l"="";                       "ls"="";                                 "fwd"=false; "def"=""}
 }
+
+# Offer the forwarders that actually exist on THIS router, which is the point:
+# by the time this runs, rows 40 and 41 may have added DNSProxy or AdGuardHome,
+# and sending a domain list at one of them is a perfectly good setup. Hardcoding
+# MihomoProxyRoS would hide that.
+:global mPickFwd do={
+    :global mSay
+    :local names [:toarray ""]
+    :foreach f in=[/ip/dns/forwarders/find] do={
+        :set names ($names, [/ip/dns/forwarders/get $f name])
+    }
+    :if ([:len $names] = 0) do={ :return $default }
+
+    :while (true) do={
+        $mSay ""
+        $mSay ("  where should " . $list . " forward its domains?")
+        :local i 1
+        :local defIdx 0
+        :foreach n in=$names do={
+            :local mark ""
+            :if ($n = $default) do={
+                :set mark "   <- suggested"
+                :set defIdx $i
+            }
+            $mSay ("   " . $i . ") " . $n . $mark)
+            :set i ($i + 1)
+        }
+        $mSay ("  number, or Enter for " . $default . ":")
+        :local a [/terminal ask]
+        :if ([:len $a] = 0) do={ :return $default }
+        :local num [:tonum $a]
+        :if ([:typeof $num] = "num" and $num >= 1 and $num <= [:len $names]) do={
+            :return ($names->($num - 1))
+        }
+        $mSay "  not a valid number"
+    }
+}
+:global mPickFwd
 
 :foreach m in=$managed do={
     # Deliberately not called "name": inside [find where name=$x] RouterOS
@@ -56,6 +99,18 @@ $mHdr "Resource lists"
             :if ([:len $lbody] = 0) do={
                 $mErr $listName "cannot fetch companion list"
             } else={
+                # The chosen forwarder is appended, not substituted: the
+                # companion body sets $ForwardTo as a default and the last
+                # assignment wins, so the file stays readable and the choice is
+                # visible as its own line at the bottom.
+                :if (($m->"fwd") = true) do={
+                    :local chosen [$mPickFwd list=$listName default=($m->"def")]
+                    :set lbody ($lbody . "
+# forwarder chosen during install, edit freely
+:global ForwardTo \"" . $chosen . "\"
+")
+                    $mOk ($listName . " will forward to " . $chosen)
+                }
                 :onerror e in={
                     /system/script/add name=$listName source=$lbody comment="sros:list (yours, never overwritten)"
                     $mOk ($listName . " installed")
