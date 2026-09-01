@@ -11,6 +11,7 @@
 :global mSay
 :global mErr
 :global mYesNo
+:global mStateSet
 
 $mHdr "Remove MihomoProxyRoS"
 
@@ -75,6 +76,8 @@ $mHdr "Remove MihomoProxyRoS"
     /interface/veth/remove [find where name="MihomoProxyRoS"]
     $mOk "veth and address removed"
 } do={ $mErr "interfaces" $e }
+
+$mStateSet key="mihomo_mode" value=""
 
 # Tens of thousands of address-list rows take minutes to delete and are inert
 # without the mangle rules that read them, so this is asked rather than assumed.

@@ -10,16 +10,26 @@
 :global mNeed
 :global mErr
 :global mSay
+:global mStateGet
 
 $mHdr "MihomoProxyRoS network"
 
-# Prerequisite. WAN and LAN drive include= and in-interface-list= below, and
+# Prerequisite. These lists drive include= and in-interface-list= below, and
 # RouterOS rejects a rule referring to a list that does not exist with a
-# message that says nothing about what is actually missing. Fail clearly.
-:foreach l in={"WAN";"LAN"} do={
+# message that says nothing about what is missing. Fail clearly instead.
+#
+# Container-only mode needs WAN (InAccept includes it, which is what stops the
+# proxy from looping its own egress back into itself) but not LAN, because
+# nothing from the LAN is being redirected.
+:local mode [$mStateGet "mihomo_mode"]
+:if ([:len $mode] = 0) do={ :set mode "full" }
+
+:local needed {"WAN"}
+:if ($mode = "full") do={ :set needed ($needed, "LAN") }
+:foreach l in=$needed do={
     :if ([:len [/interface/list/find where name=$l]] = 0) do={
         $mSay ("  [ !! ] interface list " . $l . " does not exist.")
-        $mSay "         Run menu entry 1 (Base settings) first."
+        $mSay "         Run row 10 (Base settings) first."
         :error ("missing interface list " . $l)
     }
 }
@@ -63,6 +73,15 @@ $mHdr "MihomoProxyRoS network"
     }
 } do={ $mErr "dns forwarder" $e }
 
+# The routing table and its routes exist to carry redirected traffic. In
+# container-only mode nothing is redirected, so creating them would leave a
+# table that nothing marks into -- confusing to find later, and one more thing
+# to explain when it does not work.
+:if ($mode != "full") do={
+    $mSay ""
+    $mSay "  container-only mode: routing table and policy routes skipped"
+} else={
+
 :onerror e in={
     :if ([$mNeed id=[/routing/table/find where comment="MihomoProxyRoS"] name="routing-table MihomoProxyRoS"]) do={
         /routing/table/add name=MihomoProxyRoS fib comment="MihomoProxyRoS"
@@ -90,3 +109,5 @@ $mHdr "MihomoProxyRoS network"
         $mOk "route 198.18.0.0/15 (fake-ip)"
     }
 } do={ $mErr "routes" $e }
+
+}
