@@ -14,11 +14,19 @@ $mHdr "DNS"
 # name | doh | dns | verify -- doh and dns are mutually exclusive
 # name | doh | dns | verify -- doh and dns are mutually exclusive
 #
-# verify=false on CloudFlare is measured, not cautious: with
-# verify-doh-cert=yes it fails three times out of three on RouterOS 7.24.1,
-# by IP and by hostname alike, while Google and Quad9 verify cleanly. The
-# certificate does not validate against the URL host the way RouterOS checks
-# it, so demanding verification here just disables the forwarder.
+# verify=false on CloudFlare is measured, and the cause is known: RouterOS
+# answers "ssl: no trusted CA certificate found" for 1.1.1.1, one.one.one.one
+# and cloudflare-dns.com alike, while Google and Quad9 validate cleanly with
+# the same trust store. It is not a hostname mismatch and not a problem with
+# the server -- the CA that signed the CloudFlare certificate is simply absent
+# from the bundle RouterOS ships. Demanding verification here would leave a
+# forwarder that never answers.
+#
+# Be aware of what this costs: the connection stays encrypted, but it is no
+# longer authenticated, so anyone able to intercept the route to 1.1.1.1 can
+# terminate the TLS and answer whatever they like. That is precisely the
+# attacker DoH exists to defeat. Prefer Google or Quad9 as the DoH forwarder
+# you actually route through, or import the missing CA and set verify=true.
 #
 # Yandex is plain DNS on purpose. Its DoH endpoint is reported not to work on
 # RouterOS, and it is the fallback path, which is the last place to be clever.
@@ -52,11 +60,16 @@ $mHdr "DNS"
     }
 } do={ $mErr "forwarders" $e }
 
-# The container and the DNS resolver both need the built-in CA bundle, or every
-# DoH handshake and every image pull fails with a certificate error.
+# builtin-trust-store is scoped per service, and a service left out of it has
+# no root certificates at all. "fetch" belongs here as much as the other two:
+# this installer downloads scripts over https and executes them, and without
+# it /tool fetch cannot verify a single certificate.
 :onerror e in={
-    /certificate/settings/set builtin-trust-store=dns,container
-    $mOk "trust-store dns,container"
+    /certificate/settings/set builtin-trust-store=dns,container,fetch
+    # Takes a second or two to become usable; a verified fetch immediately
+    # after this still fails.
+    :delay 3
+    $mOk "trust-store dns,container,fetch"
 } do={ $mErr "trust-store" $e }
 
 :onerror e in={
