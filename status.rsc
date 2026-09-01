@@ -98,7 +98,14 @@
 :if ($mhRun > 0) do={ :set mhHave ($mhHave + 1) }
 
 :local mhMode [$mStateGet "mihomo_mode"]
-:if ([:len $mhMode] = 0) do={ :set mhMode "?" }
+:if ([:len $mhMode] = 0) do={
+    # Nothing recorded: either this router was set up by the old script, or by
+    # hand. Read the mode off the router instead of printing a question mark --
+    # the mangle rules are what the two modes actually differ by.
+    :if ($mhMangle >= 5) do={ :set mhMode "full" } else={
+        :if ($mhVeth > 0) do={ :set mhMode "container" } else={ :set mhMode "not set up" }
+    }
+}
 
 # In container-only mode the mangle rules are absent by design, so counting
 # them as missing would show a permanent [ ~~ ] on a correct install.
