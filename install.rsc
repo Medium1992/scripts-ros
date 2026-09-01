@@ -76,10 +76,10 @@
     }
 }
 
-# raw.githubusercontent.com resolves onto Fastly ranges that are commonly
-# throttled here, and the very next thing this script does is download from
-# there. 15-netbase installs these too, but that runs long after the first
-# fetch has already had to succeed -- so they belong in preflight, before it.
+# The GitHub workaround belongs in the snippet you paste, not here -- this file
+# has already had to come down from GitHub to be running at all. What is left
+# here only tops up the same rules for the module downloads that follow, and is
+# a no-op when the snippet already added them.
 :onerror e in={
     :local added 0
     :if ([:len [/ip/firewall/nat/find where comment="GitHub_Fastly_fix_dstnat"]] = 0) do={
@@ -90,9 +90,20 @@
         /ip/firewall/nat/add action=netmap chain=output dst-address=185.199.108.0/22             to-addresses=185.199.109.0/24 comment="GitHub_Fastly_fix_output"
         :set added ($added + 1)
     }
-    :if ($added > 0) do={ :put ("  GitHub Fastly workaround: " . $added . " nat rule(s) added") }
+    :foreach a in={"185.199.108.133";"185.199.109.133";"185.199.110.133";"185.199.111.133"} do={
+        :local to ([:pick $a 0 ([:len $a] - 3)] . "154")
+        :if ([:len [/ip/firewall/nat/find where comment="GitHub_Fastly_133_to_154_dstnat" and dst-address=$a]] = 0) do={
+            /ip/firewall/nat/add action=dst-nat chain=dstnat dst-address=$a dst-port=443 protocol=tcp                 to-addresses=$to comment="GitHub_Fastly_133_to_154_dstnat"                 place-before=[/ip/firewall/nat/find where comment="GitHub_Fastly_fix_dstnat"]
+            :set added ($added + 1)
+        }
+        :if ([:len [/ip/firewall/nat/find where comment="GitHub_Fastly_133_to_154_output" and dst-address=$a]] = 0) do={
+            /ip/firewall/nat/add action=dst-nat chain=output dst-address=$a dst-port=443 protocol=tcp                 to-addresses=$to comment="GitHub_Fastly_133_to_154_output"                 place-before=[/ip/firewall/nat/find where comment="GitHub_Fastly_fix_output"]
+            :set added ($added + 1)
+        }
+    }
+    :if ($added > 0) do={ :put ("  GitHub Fastly workaround: " . $added . " nat rule(s) topped up") }
 } do={
-    :put ("  [ -- ] could not add the GitHub workaround: " . $e)
+    :put ("  [ -- ] could not top up the GitHub workaround: " . $e)
 }
 
 :put ""
