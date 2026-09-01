@@ -42,6 +42,13 @@ $mShow label="static entries" value=[:len [/ip/dns/static/find]]
 $mShow label="cache used KiB" value=[/ip/dns/get cache-used]
 $mShow label="servers" value=[/ip/dns/get servers]
 $mShow label="doh server" value=[/ip/dns/get use-doh-server]
+:local owner [$mStateGet "resolver"]
+:if ([:len $owner] = 0) do={
+    $mShow label="resolver owner" value="none (direct)"
+} else={
+    $mShow label="resolver owner" value=($owner . " at " . [$mStateGet "resolver_addr"])
+}
+$mShow label="watchdog DNSchange" value=[:len [/system/scheduler/find where name="DNSchange"]]
 
 $mHdr "Firewall and routing"
 $mShow label="mangle rules" value=[:len [/ip/firewall/mangle/find]]

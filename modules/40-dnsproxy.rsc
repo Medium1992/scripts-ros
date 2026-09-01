@@ -23,6 +23,8 @@
 :global mFetch
 :global mContState
 :global mStateGet
+:global mStateSet
+:global mRun
 
 $mHdr "DNSProxy"
 
@@ -112,36 +114,27 @@ $mHdr "DNSProxy"
     $mSay "  [ !! ] DNSProxy did not reach running state within 600s"
 }
 
-# ------------------------------------------------------- resolver failover
-# Pointing /ip dns at the container is only safe with a watchdog: if the
-# container stops and the router keeps querying 192.168.255.10, the whole
-# network loses DNS.
+# Pointing /ip dns at a container is only safe with a watchdog: if it stops and
+# the router keeps querying it, the whole network loses DNS. Only one container
+# may own the resolver -- two watchdogs would each see the other value as wrong
+# and rewrite it every ten seconds.
 $mSay ""
-:if ([$mYesNo prompt="Use DNSProxy as the router resolver (with automatic fallback)?"]) do={
-    :local body [$mFetch "assets/changeDNS.rsc"]
-    :if ([:len $body] = 0) do={
-        $mErr "changeDNS" "could not fetch assets/changeDNS.rsc"
-    } else={
-        :onerror e in={
-            :if ([:len [/system/script/find where name="changeDNS"]] = 0) do={
-                /system/script/add name=changeDNS source=$body comment="sros:dnsproxy"
-            } else={
-                /system/script/set [find where name="changeDNS"] source=$body
-            }
-            $mOk "script changeDNS"
-            :if ([$mNeed id=[/system/scheduler/find where name="DNSchange"] name="scheduler DNSchange"]) do={
-                /system/scheduler/add name=DNSchange interval=10s comment="sros:dnsproxy" \
-                    on-event="/system/script/run changeDNS"
-                $mOk "scheduler DNSchange every 10s"
-            }
-            /system/script/run changeDNS
-            $mOk ("resolver is now " . [/ip/dns/get servers])
-        } do={ $mErr "changeDNS install" $e }
-    }
+:local current [$mStateGet "resolver"]
+:local take false
+:if ([:len $current] > 0 and $current != "DNSProxy") do={
+    $mSay ("  [ !! ] " . $current . " currently owns the router resolver.")
+    :set take [$mYesNo prompt=("Take it over from " . $current . "?")]
 } else={
-    $mOk "resolver left as is"
-    $mSay "  forward selected domains manually instead:"
-    $mSay "  /ip/dns/static/add name=<domain> type=FWD forward-to=DNSProxy match-subdomain=yes"
+    :set take [$mYesNo prompt="Use DNSProxy as the router resolver (with automatic fallback)?"]
 }
 
+:if ($take) do={
+    $mStateSet key="resolver" value="DNSProxy"
+    $mStateSet key="resolver_addr" value="192.168.255.10"
+    $mRun "modules/45-resolver.rsc"
+} else={
+    $mOk "resolver left as is"
+    $mSay "  forward selected domains to it instead:"
+    $mSay "  /ip/dns/static/add name=<domain> type=FWD forward-to=DNSProxy match-subdomain=yes"
+}
 }
