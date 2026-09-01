@@ -16,6 +16,7 @@ $mHdr "Base settings"
     "modules/12-ntp.rsc";
     "modules/13-ipv6.rsc";
     "modules/15-netbase.rsc";
+    "modules/16-cacert.rsc";
     "modules/14-hardening.rsc"
 }
 

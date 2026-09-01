@@ -35,6 +35,7 @@
 :if ($v6Off) do={ :set baseHave ($baseHave + 1) }
 :if ($wanList > 0 and $lanList > 0) do={ :set baseHave ($baseHave + 1) }
 :if ($blackhole >= 3) do={ :set baseHave ($baseHave + 1) }
+:local caCount [:len [/certificate/find where name~"^cacert.pem"]]
 
 :local baseDetail ("dns " . $dnsFwd . " fwd")
 :if ($ntpOn) do={
@@ -51,6 +52,7 @@
 } else={
     :set baseDetail ($baseDetail . ", ipv6 ON")
 }
+:if ($caCount > 0) do={ :set baseDetail ($baseDetail . ", " . $caCount . " roots") }
 
 # ---------------------------------------------------------------- 2. storage
 :local slot [$mStateGet "slot"]
