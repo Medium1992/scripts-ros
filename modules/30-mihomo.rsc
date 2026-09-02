@@ -42,7 +42,7 @@ $mSay ""
 $mSay "   1) full      container + redirection policy for the whole LAN"
 $mSay "   2) container working proxy with its routes, nothing redirected yet"
 $mSay "   3) back"
-$mSay "  choose:"
+$mSay "  choose, or Enter to go back:"
 :local pick [$mAsk default=""]
 
 :if ($pick = "3" or [:len $pick] = 0) do={

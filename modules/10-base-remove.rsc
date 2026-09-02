@@ -11,12 +11,13 @@
 :global mOk
 :global mSay
 :global mErr
+:global mSkip
 :global mYesNo
 
 $mHdr "Remove base settings"
 
 :if ([$mYesNo prompt="Remove base objects (forwarders, blackholes, NAT workaround)?"] = false) do={
-    $mOk "cancelled"
+    $mSkip "cancelled"
 } else={
 
 :global mRun

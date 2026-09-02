@@ -25,6 +25,7 @@
 :global mYesNo
 :global mFetch
 :global mHash
+:global mSkip
 :global mStateGet
 :global mStateSet
 
@@ -47,36 +48,66 @@ $mHdr "Resource lists"
 # by the time this runs, rows 40 and 41 may have added DNSProxy or AdGuardHome,
 # and sending a domain list at one of them is a perfectly good setup. Hardcoding
 # MihomoProxyRoS would hide that.
+# Offer the forwarders that exist on THIS router, but not all twenty-five of
+# them. The _noverify and _udp variants are diagnostic and last-resort; nobody
+# points a domain list at one on purpose, and listing them makes the reader
+# scroll past two dozen lines to find the three that matter. They are one
+# keystroke away.
 :global mPickFwd do={
     :global mSay
-    :local names [:toarray ""]
-    :foreach f in=[/ip/dns/forwarders/find] do={
-        :set names ($names, [/ip/dns/forwarders/get $f name])
-    }
-    :if ([:len $names] = 0) do={ :return $default }
+    :global mPad
+    :local short [:toarray ""]
+    :local full [:toarray ""]
 
+    :foreach f in=[/ip/dns/forwarders/find] do={
+        :local fname [/ip/dns/forwarders/get $f name]
+        :set full ($full, $fname)
+        :local variant false
+        :if ([:typeof [:find $fname "_noverify"]] = "num") do={ :set variant true }
+        :if ([:typeof [:find $fname "_udp"]] = "num") do={ :set variant true }
+        :if ($variant = false) do={ :set short ($short, $fname) }
+    }
+    :if ([:len $full] = 0) do={ :return $default }
+
+    :local names $short
+    :local showingAll false
     :while (true) do={
         $mSay ""
-        $mSay ("  where should " . $list . " forward its domains?")
+        $mSay ("  where should " . $list . " send its domains?")
         :local i 1
-        :local defIdx 0
         :foreach n in=$names do={
-            :local mark ""
-            :if ($n = $default) do={
-                :set mark "   <- suggested"
-                :set defIdx $i
+            :local hint ""
+            # A forwarder pointing into the container link network is one of
+            # ours -- usually the answer -- so say so instead of leaving the
+            # reader to recognise the name.
+            # dns-servers comes back as an array, and :find on an array finds
+            # nothing -- it has to be a string before it can be searched.
+            :local srv [:tostr [/ip/dns/forwarders/get [find where name=$n] dns-servers]]
+            :if ([:typeof [:find $srv "192.168.255."]] = "num") do={ :set hint "  local container" }
+            :if ($n = $default) do={ :set hint ($hint . "   <- suggested") }
+            :if ([:len $hint] = 0) do={
+                $mSay ("   " . [$mPad ($i . ")") 5] . $n)
+            } else={
+                $mSay ("   " . [$mPad ($i . ")") 5] . [$mPad $n 24] . $hint)
             }
-            $mSay ("   " . $i . ") " . $n . $mark)
             :set i ($i + 1)
+        }
+        :if ($showingAll = false) do={
+            $mSay ("   a)   show all " . [:len $full] . " forwarders, including _noverify and _udp")
         }
         $mSay ("  number, or Enter for " . $default . ":")
         :local a [/terminal ask]
         :if ([:len $a] = 0) do={ :return $default }
-        :local num [:tonum $a]
-        :if ([:typeof $num] = "num" and $num >= 1 and $num <= [:len $names]) do={
-            :return ($names->($num - 1))
+        :if ($a = "a" and $showingAll = false) do={
+            :set names $full
+            :set showingAll true
+        } else={
+            :local num [:tonum $a]
+            :if ([:typeof $num] = "num" and $num >= 1 and $num <= [:len $names]) do={
+                :return ($names->($num - 1))
+            }
+            $mSay "  not a valid number"
         }
-        $mSay "  not a valid number"
     }
 }
 :global mPickFwd
@@ -117,7 +148,7 @@ $mHdr "Resource lists"
                 } do={ $mErr $listName $e }
             }
         } else={
-            $mOk ($listName . " kept (yours)")
+            $mSkip ($listName . " kept, it is yours")
         }
     }
 
@@ -143,7 +174,7 @@ $mHdr "Resource lists"
             :local hLocal [$mHash [/system/script/get [find where name=$sname] source]]
 
             :if ($hLocal = $hExpected) do={
-                $mOk ($sname . " up to date")
+                $mSkip ($sname . " up to date")
                 $mStateSet key=("h_" . $sname) value=$hExpected
                 $mStateSet key=("e_" . $sname) value=[$mHash $ebody]
             } else={
@@ -156,11 +187,11 @@ $mHdr "Resource lists"
                     $mSay "         1) keep mine   2) take upstream (mine saved as _bak)   3) skip"
                     :local c [$mAsk default="1"]
                     :if ($c = "2") do={ :set doWrite true }
-                    :if ($c = "1") do={ $mOk ($sname . " kept, upstream ignored") }
-                    :if ($c != "1" and $c != "2") do={ $mOk ($sname . " skipped") }
+                    :if ($c = "1") do={ $mSkip ($sname . " kept, upstream ignored") }
+                    :if ($c != "1" and $c != "2") do={ $mSkip ($sname . " skipped") }
                 } else={
                     :if ($edited) do={
-                        $mOk ($sname . " edited locally, left alone")
+                        $mSkip ($sname . " edited locally, left alone")
                     } else={
                         :set doWrite true
                     }
@@ -194,13 +225,13 @@ $mSay ""
             on-event="/system/script/run FWD_update_RU\r\n/system/script/run FWD_update\r\n/system/script/run IP_MihomoProxyRoS"
         $mOk "scheduler update_FWD daily at 06:30"
     } else={
-        $mOk "scheduler update_FWD present"
+        $mSkip "scheduler update_FWD present"
     }
     :if ([:len [/system/scheduler/find where name="route_UP"]] = 0) do={
         /system/scheduler/add name=route_UP interval=10s comment="sros:lists" on-event="/system/script/run route_UP"
         $mOk "scheduler route_UP every 10s"
     } else={
-        $mOk "scheduler route_UP present"
+        $mSkip "scheduler route_UP present"
     }
 } do={ $mErr "schedulers" $e }
 
