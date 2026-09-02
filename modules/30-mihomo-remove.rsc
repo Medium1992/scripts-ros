@@ -42,7 +42,8 @@ $mHdr "Remove MihomoProxyRoS"
 
 :onerror e in={
     /container/envs/remove [find where list="MihomoProxyRoS"]
-    /container/mounts/remove [find where list="MihomoProxyRoS"]
+    :local mnt [/container/mounts/find where list="MihomoProxyRoS"]
+    :if ([:len $mnt] > 0) do={ /container/mounts/remove $mnt }
     $mOk "envs and mounts removed"
 } do={ $mErr "envs and mounts" $e }
 
@@ -61,7 +62,8 @@ $mHdr "Remove MihomoProxyRoS"
 } do={ $mErr "routes" $e }
 
 :onerror e in={
-    /ip/dns/static/remove [find where forward-to="MihomoProxyRoS"]
+    :local fwd [/ip/dns/static/find where forward-to="MihomoProxyRoS"]
+    :if ([:len $fwd] > 0) do={ /ip/dns/static/remove $fwd }
     /ip/dns/forwarders/remove [find where name="MihomoProxyRoS"]
     $mOk "proxy forwarder and its FWD entries removed"
 } do={ $mErr "dns" $e }
@@ -70,8 +72,13 @@ $mHdr "Remove MihomoProxyRoS"
 # any proxy, and someone removing mihomo may well be installing another one.
 :if ([$mYesNo prompt="Also un-block Apple Private Relay (mask.icloud.com etc)?"]) do={
     :onerror e in={
-        /ip/dns/static/remove [find where name~"icloud.com" or name~"apple.com"]
-        $mOk "Apple Private Relay records removed"
+        :local apple [/ip/dns/static/find where name~"icloud.com" or name~"apple.com"]
+        :if ([:len $apple] > 0) do={
+            /ip/dns/static/remove $apple
+            $mOk ([:len $apple] . " Apple Private Relay record(s) removed")
+        } else={
+            $mSkip "no Apple Private Relay records present"
+        }
     } do={ $mErr "apple records" $e }
 } else={
     $mOk "Apple Private Relay stays blocked"

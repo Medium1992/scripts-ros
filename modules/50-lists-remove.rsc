@@ -66,8 +66,13 @@ $mSay ""
 $mSay ("  they populated " . $fwd . " FWD records and " . $al . " address-list entries")
 :if ([$mYesNo prompt="Delete that data too? (slow, several minutes)"]) do={
     :onerror e in={
-        /ip/dns/static/remove [find where type="FWD" and name!="pool.ntp.org"]
-        $mOk "FWD records removed"
+        :local rows [/ip/dns/static/find where type="FWD" and name!="pool.ntp.org"]
+        :if ([:len $rows] > 0) do={
+            /ip/dns/static/remove $rows
+            $mOk ([:len $rows] . " FWD record(s) removed")
+        } else={
+            $mSkip "no FWD records to remove"
+        }
     } do={ $mErr "fwd records" $e }
 } else={
     $mOk "populated data kept"
