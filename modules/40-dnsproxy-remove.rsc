@@ -59,7 +59,8 @@ $mHdr "Remove DNSProxy"
 } do={ $mErr "container" $e }
 
 :onerror e in={
-    /ip/dns/static/remove [find where forward-to="DNSProxy"]
+    :local fwd [/ip/dns/static/find where forward-to="DNSProxy"]
+    :if ([:len $fwd] > 0) do={ /ip/dns/static/remove $fwd }
     /ip/dns/forwarders/remove [find where name="DNSProxy"]
     /ip/address/remove [find where address="192.168.255.9/30"]
     /interface/list/member/remove [find where interface="DNSProxy"]

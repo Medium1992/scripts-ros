@@ -70,7 +70,7 @@ $mHdr "AdGuard Home"
 }
 :onerror e in={
     :foreach m in=$mounts do={
-        :if ([$mNeed id=[/container/mounts/find where comment=($m->"c")] name=("mount " . ($m->"src"))]) do={
+        :if ([$mNeed id=[/container/mounts/find where list="AdGuardHome" and dst~($m->"key")] name=("mount " . ($m->"src"))]) do={
             :onerror e2 in={ /file/add name=($m->"n") type=directory } do={}
             /container/mounts/add src=($m->"src") dst=($m->"dst") list=AdGuardHome comment=($m->"c")
             $mOk ("mount " . ($m->"src"))
