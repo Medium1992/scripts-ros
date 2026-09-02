@@ -59,8 +59,10 @@ $mHdr "Remove AdGuard Home"
 } do={ $mErr "container" $e }
 
 :onerror e in={
-    /container/mounts/remove [find where list="AdGuardHome"]
-    /ip/dns/static/remove [find where forward-to="AdGuardHome"]
+    :local mnt [/container/mounts/find where list="AdGuardHome"]
+    :if ([:len $mnt] > 0) do={ /container/mounts/remove $mnt }
+    :local fwd [/ip/dns/static/find where forward-to="AdGuardHome"]
+    :if ([:len $fwd] > 0) do={ /ip/dns/static/remove $fwd }
     /ip/dns/forwarders/remove [find where name="AdGuardHome"]
     /ip/address/remove [find where address="192.168.255.13/30"]
     /interface/list/member/remove [find where interface="AdGuardHome"]
@@ -70,8 +72,13 @@ $mHdr "Remove AdGuard Home"
 
 :if ([$mYesNo prompt="Also delete the AdGuard config and query log directories?"]) do={
     :onerror e in={
-        /file/remove [find where name~"^adguard_work" or name~"^adguard_conf"]
-        $mOk "adguard directories deleted"
+        :local dirs [/file/find where name~"^adguard_work" or name~"^adguard_conf"]
+        :if ([:len $dirs] > 0) do={
+            /file/remove $dirs
+            $mOk ([:len $dirs] . " adguard directory/ies deleted")
+        } else={
+            $mSkip "no adguard directories to delete"
+        }
     } do={ $mErr "directories" $e }
 } else={
     $mSay "  /adguard_conf/ and /adguard_work/ kept, a reinstall picks them up"
