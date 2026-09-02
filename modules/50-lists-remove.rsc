@@ -10,13 +10,14 @@
 :global mOk
 :global mSay
 :global mErr
+:global mSkip
 :global mYesNo
 :global mStateSet
 
 $mHdr "Remove resource lists"
 
 :if ([$mYesNo prompt="Remove the resource scripts and their schedulers?"] = false) do={
-    $mOk "cancelled"
+    $mSkip "cancelled"
 } else={
 
 :onerror e in={

@@ -10,13 +10,14 @@
 :global mOk
 :global mSay
 :global mErr
+:global mSkip
 :global mYesNo
 :global mStateSet
 
 $mHdr "Remove MihomoProxyRoS"
 
 :if ([$mYesNo prompt="Remove the MihomoProxyRoS container and all its routing?"] = false) do={
-    $mOk "cancelled"
+    $mSkip "cancelled"
 } else={
 
 :onerror e in={

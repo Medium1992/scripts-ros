@@ -9,6 +9,7 @@
 :global mHdr
 :global mOk
 :global mErr
+:global mSkip
 :global mYesNo
 :global mFallbackLoad
 :global mFallbackApply
@@ -20,7 +21,7 @@
 $mHdr "Remove DNSProxy"
 
 :if ([$mYesNo prompt="Remove the DNSProxy container and its resolver watchdog?"] = false) do={
-    $mOk "cancelled"
+    $mSkip "cancelled"
 } else={
 
 # Hand the resolver back before touching the container: clearing state first

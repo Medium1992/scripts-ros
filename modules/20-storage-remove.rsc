@@ -8,6 +8,7 @@
 :global mOk
 :global mSay
 :global mErr
+:global mSkip
 :global mYesNo
 :global mStateSet
 
@@ -20,7 +21,7 @@ $mHdr "Remove container storage"
     $mSay "         disappears with the disk and RouterOS will not warn you."
 } else={
     :if ([$mYesNo prompt="Remove repull job, RAM disks and the stored slot choice?"] = false) do={
-        $mOk "cancelled"
+        $mSkip "cancelled"
     } else={
         # Any repull jobs belong to their containers and are removed with them
         # (rows 30, 40, 41). If containers are gone and jobs are left, they are

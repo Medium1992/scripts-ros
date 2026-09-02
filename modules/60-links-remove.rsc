@@ -8,12 +8,13 @@
 :global mOk
 :global mSay
 :global mErr
+:global mSkip
 :global mYesNo
 
 $mHdr "Clear proxy link and subscription"
 
 :if ([$mYesNo prompt="Clear LINK0/LINK1 and SUB_LINK0/SUB_LINK1?"] = false) do={
-    $mOk "cancelled"
+    $mSkip "cancelled"
 } else={
     :onerror e in={
         :foreach k in={"LINK0";"SUB_LINK0";"LINK1";"SUB_LINK1"} do={
