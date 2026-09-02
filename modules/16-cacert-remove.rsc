@@ -13,6 +13,7 @@
 :global mOk
 :global mSay
 :global mErr
+:global mSkip
 :global mYesNo
 
 $mHdr "Remove root certificates"
@@ -22,7 +23,7 @@ $mHdr "Remove root certificates"
     $mOk "no imported roots present"
 } else={
     :if ([$mYesNo prompt=("Remove " . [:len $ids] . " imported root certificate(s)?")] = false) do={
-        $mOk "cancelled"
+        $mSkip "cancelled"
     } else={
         :onerror e in={
             # Not "where verify-doh-cert=yes": RouterOS reads that property

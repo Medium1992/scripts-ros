@@ -9,6 +9,7 @@
 :global mOk
 :global mSay
 :global mErr
+:global mSkip
 :global mYesNo
 :global mFallbackLoad
 :global mFallbackApply
@@ -20,7 +21,7 @@
 $mHdr "Remove AdGuard Home"
 
 :if ([$mYesNo prompt="Remove the AdGuard Home container?"] = false) do={
-    $mOk "cancelled"
+    $mSkip "cancelled"
 } else={
 
 # Hand the resolver back before touching the container: clearing state first

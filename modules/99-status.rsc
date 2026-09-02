@@ -10,9 +10,19 @@
 :global mStateGet
 :global mManifest
 :global mContState
+:global mPad
 
 :global mShow do={
-    :put ("  " . $label . [:pick "........................" 0 (24 - [:len $label])] . " " . $value)
+    :global mPad
+    # Values arrive as arrays sometimes (dns servers, for one), and printing an
+    # array concatenated with a string repeats the whole line per element.
+    # Force it to a string first.
+    # Dots, not spaces: on a long report the eye needs a line to follow from
+    # the label to the value. Guard the width -- [:pick] with a negative count
+    # returns nonsense rather than clamping.
+    :local dots ""
+    :if ([:len $label] < 24) do={ :set dots [:pick "........................" 0 (24 - [:len $label])] }
+    :put ("  " . $label . $dots . " " . [:tostr $value])
 }
 :global mShow
 
@@ -33,7 +43,7 @@ $mShow label="filesystem" value=[$mStateGet "fs"]
 :foreach d in=[/disk/find] do={
     $mShow label=("disk " . [/disk/get $d slot]) value=([/disk/get $d fs] . ", " . ([/disk/get $d free] / 1048576) . " MiB free")
 }
-$mShow label="repull job" value=[:len [/system/scheduler/find where name="MihomoProxyRoS_repull"]]
+$mShow label="repull jobs" value=[:len [/system/scheduler/find where comment="sros:repull"]]
 
 $mHdr "DNS"
 $mShow label="forwarders" value=[:len [/ip/dns/forwarders/find]]
@@ -54,7 +64,9 @@ $mShow label="trust store scope" value=[/certificate/settings/get builtin-trust-
 :if ($caN = 0) do={
     $mShow label="imported roots" value="none (RouterOS builtin only)"
 } else={
-    $mShow label="imported roots" value=($caN . " from the Mozilla bundle")
+    :local caWhat "targeted"
+    :if ([:len [/certificate/find where name~"^cacert.pem"]] > 0) do={ :set caWhat "Mozilla bundle" }
+    $mShow label="imported roots" value=($caN . " (" . $caWhat . ")")
 }
 
 $mHdr "Firewall and routing"

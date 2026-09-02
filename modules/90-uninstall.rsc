@@ -14,6 +14,7 @@
 :global mOk
 :global mRun
 :global mYesNo
+:global mSkip
 
 $mHdr "Remove everything"
 
@@ -22,7 +23,7 @@ $mSay "  base settings are handled last and keep DNS, NTP and IPv6 as they are."
 $mSay ""
 
 :if ([$mYesNo prompt="Walk through removing everything?"] = false) do={
-    $mOk "cancelled"
+    $mSkip "cancelled"
 } else={
 
 :local steps {
@@ -40,11 +41,24 @@ $mSay ""
     :if ([$mRun $s] = false) do={ :set failed ($failed + 1) }
 }
 
-# The state script is the last thing to go: the removals above read it.
+# The state script is only dropped when there is nothing left for it to
+# describe. Deleting it after the operator declined every step would throw away
+# their storage slot, resolver and mode choices while leaving the objects those
+# choices refer to in place -- the worst of both.
+:local leftovers 0
+:set leftovers ($leftovers + [:len [/container/find where comment="MihomoProxyRoS" or comment="DNSProxy" or comment="AdGuardHome"]])
+:set leftovers ($leftovers + [:len [/routing/table/find where comment="MihomoProxyRoS"]])
+:set leftovers ($leftovers + [:len [/system/script/find where comment~"^sros:"]])
+:set leftovers ($leftovers + [:len [/interface/veth/find where name="MihomoProxyRoS" or name="DNSProxy" or name="AdGuardHome"]])
+
 :onerror e in={
     :if ([:len [/system/script/find where name="sros_state"]] > 0) do={
-        /system/script/remove [find where name="sros_state"]
-        $mOk "state removed"
+        :if ($leftovers = 0) do={
+            /system/script/remove [find where name="sros_state"]
+            $mOk "state removed, nothing of this project is left"
+        } else={
+            $mSkip ("state kept: " . $leftovers . " object(s) of this project still installed")
+        }
     }
 } do={ :put ("  [ !! ] state: " . $e) }
 
