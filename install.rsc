@@ -111,16 +111,24 @@
 
 # builtin-trust-store is scoped per service. If "fetch" is not in it, /tool
 # fetch has no root certificates at all and cannot verify anything -- and the
-# very next thing this script does is download code and execute it. Add it
-# before that happens, preserving whatever is already there.
+# very next thing this script does is download code and execute it.
+#
+# Appended, never assigned. The stock "default" group already includes fetch
+# along with ten other services, so on an untouched router this whole block is
+# a no-op; assigning a list instead would quietly strip trust from everything
+# not named here.
 :onerror e in={
-    :local ts [/certificate/settings/get builtin-trust-store]
-    # A failed :find reports typeof "nil", not "nothing" -- "nothing" is for
-    # variables that were never set. Comparing against the wrong one here
-    # silently means "already present" and skips the fix.
-    :if ([:typeof [:find $ts "fetch"]] != "num") do={
-        :if ([:len $ts] = 0 or $ts = "none") do={
-            /certificate/settings/set builtin-trust-store=fetch
+    :local ts [:tostr [/certificate/settings/get builtin-trust-store]]
+    # The value is either a group keyword or a service list. "default" and
+    # "all" already include fetch -- measured -- so leave them be. Only a
+    # narrowed list gets fetch appended, and "untrusted" gets the stock group.
+    :local act false
+    :if ($ts = "default" or $ts = "all") do={ :set act false } else={
+        :if ([:typeof [:find $ts "fetch"]] != "num") do={ :set act true }
+    }
+    :if ($act) do={
+        :if ($ts = "untrusted") do={
+            /certificate/settings/set builtin-trust-store=default
         } else={
             /certificate/settings/set builtin-trust-store=($ts . ",fetch")
         }
@@ -128,7 +136,7 @@
         # fails for a second or two after the setting changes, then starts
         # working. Measured, not superstition.
         :delay 3
-        :put ("  trust store: " . [/certificate/settings/get builtin-trust-store])
+        :put ("  trust store: " . [:tostr [/certificate/settings/get builtin-trust-store]])
     }
 } do={
     :put ("  [ -- ] could not extend the trust store: " . $e)
