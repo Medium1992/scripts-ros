@@ -133,16 +133,48 @@ $mSay "  Now setting up the forwarders, the resolver and the bootstrap records."
     $mOk ("resolver: " . [$mFallbackDesc])
 } do={ $mErr "resolver" $e }
 
-# builtin-trust-store is scoped per service, and a service left out of it has
-# no root certificates at all. "fetch" belongs here as much as the other two:
-# this installer downloads scripts over https and executes them, and without
-# it /tool fetch cannot verify a single certificate.
+# builtin-trust-store takes either a group keyword or an explicit service list,
+# and the stock value is the keyword "default". Measured on 7.24.1 with a
+# verified fetch of this repository:
+#
+#   default     ok      already covers fetch, dns and container
+#   all         ok
+#   untrusted   fails   nothing is trusted
+#
+# So on an untouched router there is nothing to do here, and assigning the
+# three services this project cares about would replace a keyword covering
+# eleven of them -- taking trust away rather than adding it. Only a list that
+# has genuinely been narrowed is worth touching, and then only by appending.
+# (This lab router read container,dns after the older script, which is exactly
+# why a verified fetch failed on it.)
 :onerror e in={
-    /certificate/settings/set builtin-trust-store=dns,container,fetch
-    # Takes a second or two to become usable; a verified fetch immediately
-    # after this still fails.
-    :delay 3
-    $mOk "trust-store dns,container,fetch"
+    :local ts [:tostr [/certificate/settings/get builtin-trust-store]]
+    :if ($ts = "default" or $ts = "all") do={
+        $mSkip ("trust store is the stock '" . $ts . "' group, leaving it alone")
+    } else={
+        :local missing ""
+        :foreach svc in={"dns";"container";"fetch"} do={
+            :if ([:typeof [:find $ts $svc]] != "num") do={
+                :if ([:len $missing] = 0) do={ :set missing $svc } else={ :set missing ($missing . "," . $svc) }
+            }
+        }
+        :if ([:len $missing] = 0) do={
+            $mSkip ("trust store already covers dns, container and fetch (" . $ts . ")")
+        } else={
+            :if ($ts = "untrusted") do={
+                # "untrusted" is not a list to append to; it means nothing is
+                # trusted at all, and the stock group is the right answer.
+                /certificate/settings/set builtin-trust-store=default
+                $mOk "trust store was 'untrusted', set to the stock 'default' group"
+            } else={
+                /certificate/settings/set builtin-trust-store=($ts . "," . $missing)
+                $mOk ("trust store extended with " . $missing . ", now " . [:tostr [/certificate/settings/get builtin-trust-store]])
+            }
+            # Takes a second or two to become usable; a verified fetch
+            # immediately after this still fails.
+            :delay 3
+        }
+    }
 } do={ $mErr "trust-store" $e }
 
 
