@@ -131,9 +131,10 @@ $mRepull name="AdGuardHome" image="registry-1.docker.io/adguard/adguardhome"    
 }
 
 $mSay ""
-$mSay "  first run needs the setup wizard:  http://192.168.255.14:3000"
-$mSay "  in it, set the DNS listen address to 0.0.0.0 and move the web"
-$mSay "  interface off port 80, then come back here."
+$mSay "  Set it up in the browser, there is nothing to do from here:"
+$mSay "    http://192.168.255.14:3000    first run, the setup wizard"
+$mSay "    http://192.168.255.14         afterwards, the normal panel"
+$mSay "  Everything -- upstreams, filters, per-client rules -- lives in that UI."
 
 # Offering the resolver role is one shared decision, made in 45-resolver so the
 # rules and the watchdog exist in exactly one place. Declining is fine and

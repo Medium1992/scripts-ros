@@ -4,7 +4,7 @@
 # change with a single fetch instead of downloading each script.
 
 :global mManifest {
-    "lists/engine.rsc"="8372da7628a59e684985dc218a488f55";
+    "lists/engine.rsc"="c8412de4281667a2e869474278c1049b";
     "lists/FWD_update_list.rsc"="403c16cff1bc50acde97af61129928b3";
     "lists/FWD_update_RU_list.rsc"="ad6ce4e956628aea4bbbf38c1886e298";
     "lists/IP_MihomoProxyRoS_list.rsc"="3d9cb910c8af38c46e19fd543b01a586";
