@@ -64,10 +64,23 @@ $mHdr "Remove AdGuard Home"
     :local fwd [/ip/dns/static/find where forward-to="AdGuardHome"]
     :if ([:len $fwd] > 0) do={ /ip/dns/static/remove $fwd }
     /ip/dns/forwarders/remove [find where name="AdGuardHome"]
-    /ip/address/remove [find where address="192.168.255.13/30"]
+    # Give back whatever this container was allocated: a router-side address if
+    # it was standalone, a bridge port if it was on the bridge.
+    :global mStateGet
+    :global mStateSet
+    :local gw [$mStateGet ("netgw_AdGuardHome")]
+    :if ([:len $gw] > 0) do={
+        :local addr [/ip/address/find where address=($gw . "/30")]
+        :if ([:len $addr] > 0) do={ /ip/address/remove $addr }
+    }
+    :local port [/interface/bridge/port/find where interface="AdGuardHome"]
+    :if ([:len $port] > 0) do={ /interface/bridge/port/remove $port }
     /interface/list/member/remove [find where interface="AdGuardHome"]
     /interface/veth/remove [find where name="AdGuardHome"]
-    $mOk "mounts, forwarder, veth and address removed"
+    $mStateSet key="netaddr_AdGuardHome" value=""
+    $mStateSet key="netgw_AdGuardHome" value=""
+    $mStateSet key="netmode_AdGuardHome" value=""
+    $mOk "mounts, forwarder, veth, bridge port and address removed"
 } do={ $mErr "network" $e }
 
 :if ([$mYesNo prompt="Also delete the AdGuard config and query log directories?"]) do={
