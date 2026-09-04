@@ -85,10 +85,23 @@ $mHdr "Remove MihomoProxyRoS"
 }
 
 :onerror e in={
-    /ip/address/remove [find where address="192.168.255.1/30"]
+    # Standalone containers leave a router-side address behind; bridged ones
+    # leave a bridge port. Take whichever this one has.
+    :global mStateGet
+    :global mStateSet
+    :local gw [$mStateGet "netgw_MihomoProxyRoS"]
+    :if ([:len $gw] > 0) do={
+        :local addr [/ip/address/find where address=($gw . "/30")]
+        :if ([:len $addr] > 0) do={ /ip/address/remove $addr }
+    }
+    :local port [/interface/bridge/port/find where interface="MihomoProxyRoS"]
+    :if ([:len $port] > 0) do={ /interface/bridge/port/remove $port }
     /interface/list/member/remove [find where interface="MihomoProxyRoS"]
     /interface/veth/remove [find where name="MihomoProxyRoS"]
-    $mOk "veth and address removed"
+    $mStateSet key=("netaddr_MihomoProxyRoS") value=""
+    $mStateSet key=("netgw_MihomoProxyRoS") value=""
+    $mStateSet key=("netmode_MihomoProxyRoS") value=""
+    $mOk "veth, bridge port and address removed"
 } do={ $mErr "interfaces" $e }
 
 $mStateSet key="mihomo_mode" value=""

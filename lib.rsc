@@ -191,6 +191,160 @@
     :return [:convert $1 transform=md5 to=hex]
 }
 
+# ------------------------------------------------------- container networking
+# Containers used to get a /30 each, which meant every pair of them could only
+# reach each other through the router. Some of them want to be neighbours --
+# something sitting next to mihomo and talking to it directly has no business
+# going up to layer 3 for that -- so there is now a bridge they can share.
+#
+#   192.168.255.0/27   the bridge: .1 is the router, .2-.30 are containers
+#   192.168.255.32+    standalone /30s, handed out in order, one per container
+#
+# The split at .32 is what keeps the two schemes from colliding. Addresses are
+# allocated rather than hardcoded, and remembered in state, so a container keeps
+# the address it was given and a second one never lands on top of it.
+
+:global mBridgeName "ContainerBridge"
+:global mBridgeCIDR "192.168.255.1/27"
+:global mBridgeGW "192.168.255.1"
+
+# The address a container ended up with. Everything that needs to point at it --
+# a DNS forwarder, a route, a mangle rule -- asks here instead of assuming.
+:global mNetAddr do={
+    :global mStateGet
+    :return [$mStateGet ("netaddr_" . $1)]
+}
+
+:global mNetEnsureBridge do={
+    :global mBridgeName
+    :global mBridgeCIDR
+    :global mOk
+    :if ([:len [/interface/bridge/find where name=$mBridgeName]] = 0) do={
+        /interface/bridge/add name=$mBridgeName comment="sros:containers"
+        $mOk ("bridge " . $mBridgeName . " created")
+    }
+    :if ([:len [/ip/address/find where address=$mBridgeCIDR]] = 0) do={
+        /ip/address/add address=$mBridgeCIDR interface=$mBridgeName
+        $mOk ("address " . $mBridgeCIDR . " on " . $mBridgeName)
+    }
+    :return true
+}
+
+# Lowest free host in .2-.30 that nothing already answers to.
+:global mNetFreeOnBridge do={
+    :for i from=2 to=30 do={
+        :local cand ("192.168.255." . $i)
+        :if ([:len [/interface/veth/find where address~("^" . $cand . "/")]] = 0) do={
+            :return $cand
+        }
+    }
+    :return ""
+}
+
+# Lowest free /30 base at or above .32, stepping by four.
+:global mNetFreeP2P do={
+    :local i 32
+    :while ($i < 252) do={
+        :local gw ("192.168.255." . ($i + 1))
+        :local ct ("192.168.255." . ($i + 2))
+        :if ([:len [/ip/address/find where address=($gw . "/30")]] = 0 and              [:len [/interface/veth/find where address~("^" . $ct . "/")]] = 0) do={
+            :return $ct
+        }
+        :set i ($i + 4)
+    }
+    :return ""
+}
+
+# Create (or adopt) the veth for one container and put it where it belongs.
+# $name is the container comment, $default is "bridge" or "standalone".
+:global mNetAttach do={
+    :global mOk
+    :global mSay
+    :global mSkip
+    :global mErr
+    :global mAsk
+    :global mBridgeName
+    :global mBridgeGW
+    :global mStateSet
+    :global mStateGet
+    :global mNetEnsureBridge
+    :global mNetFreeOnBridge
+    :global mNetFreeP2P
+
+    # Already built? Adopt whatever is really on the router rather than
+    # believing state, and never renumber a container that is working.
+    :local existing [/interface/veth/find where name=$cname]
+    :if ([:len $existing] > 0) do={
+        # Two traps in three lines. get takes an id, not the array find returns,
+        # and passing the array back fails with "invalid internal item number"
+        # even when it holds exactly one item. And a veth address is an array,
+        # not a string, so :find on it never matches and the prefix survives --
+        # which then goes into a forwarder as "192.168.253.2/30" and is
+        # rejected. Force it to a string before touching it.
+        :local addr [:tostr [/interface/veth/get ($existing->0) address]]
+        :local ip $addr
+        :local cut [:find $addr "/"]
+        :if ([:typeof $cut] = "num") do={ :set ip [:pick $addr 0 $cut] }
+        $mStateSet key=("netaddr_" . $cname) value=$ip
+        $mSkip ("veth " . $cname . " already exists at " . $addr)
+        :return $ip
+    }
+
+    :local mode $default
+    $mSay ""
+    $mSay ("  How should " . $cname . " be attached?")
+    $mSay ("   1) bridge      share " . $mBridgeName . " with the other containers,")
+    $mSay "                  so they can talk to each other directly"
+    $mSay "   2) standalone  its own /30, reachable only through the router"
+    $mSay ("  Enter for " . $default . ":")
+    :local pick [$mAsk default=""]
+    :if ($pick = "1") do={ :set mode "bridge" }
+    :if ($pick = "2") do={ :set mode "standalone" }
+
+    :local ip ""
+    :local gw ""
+    :if ($mode = "bridge") do={
+        $mNetEnsureBridge
+        :set ip [$mNetFreeOnBridge]
+        :set gw $mBridgeGW
+        :if ([:len $ip] = 0) do={
+            $mErr $cname "no free address left on the bridge"
+            :return ""
+        }
+        :onerror e in={
+            /interface/veth/add name=$cname address=($ip . "/27") gateway=$gw
+            /interface/bridge/port/add bridge=$mBridgeName interface=$cname comment="sros:containers"
+            $mOk ($cname . " on " . $mBridgeName . " at " . $ip . "/27, gateway " . $gw)
+        } do={
+            $mErr $cname $e
+            :return ""
+        }
+    } else={
+        :set ip [$mNetFreeP2P]
+        :if ([:len $ip] = 0) do={
+            $mErr $cname "no free /30 left"
+            :return ""
+        }
+        # .34 for the container means .33 for the router: the pair sits inside
+        # one /30 and the router end is always one below.
+        :local last [:tonum [:pick $ip ([:find $ip "255."] + 4) [:len $ip]]]
+        :set gw ("192.168.255." . ($last - 1))
+        :onerror e in={
+            /interface/veth/add name=$cname address=($ip . "/30") gateway=$gw
+            /ip/address/add address=($gw . "/30") interface=$cname
+            $mOk ($cname . " standalone at " . $ip . "/30, router " . $gw)
+        } do={
+            $mErr $cname $e
+            :return ""
+        }
+    }
+
+    $mStateSet key=("netmode_" . $cname) value=$mode
+    $mStateSet key=("netaddr_" . $cname) value=$ip
+    $mStateSet key=("netgw_" . $cname) value=$gw
+    :return $ip
+}
+
 # ------------------------------------------------------------- repull jobs
 # A container on a tmpfs slot is gone after a reboot, so it needs a startup job
 # that pulls it again. That job belongs to the container, not to the storage

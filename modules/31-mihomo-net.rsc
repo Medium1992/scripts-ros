@@ -2,8 +2,9 @@
 # The plumbing between RouterOS and the container: a veth pair on a /30, a
 # dedicated routing table, and the routes that send marked traffic into it.
 #
-# 192.168.255.0/30 is the link network. .1 is the router, .2 is the container,
-# and every reference to .2 elsewhere in the project means "the proxy".
+# The container may sit on the shared bridge (192.168.255.0/27, the default for
+# mihomo) or on a /30 of its own. Either way the address it actually got is what
+# the forwarder and the routes are built from -- nothing here assumes .2.
 
 :global mHdr
 :global mOk
@@ -28,16 +29,16 @@ $mHdr "MihomoProxyRoS network"
     }
 }
 
-:onerror e in={
-    :if ([$mNeed id=[/interface/veth/find where name="MihomoProxyRoS"] name="veth MihomoProxyRoS"]) do={
-        /interface/veth/add name=MihomoProxyRoS address=192.168.255.2/30 gateway=192.168.255.1
-        $mOk "veth MihomoProxyRoS"
-    }
-    :if ([$mNeed id=[/ip/address/find where address="192.168.255.1/30"] name="address 192.168.255.1/30"]) do={
-        /ip/address/add address=192.168.255.1/30 interface=MihomoProxyRoS
-        $mOk "address 192.168.255.1/30"
-    }
-} do={ $mErr "veth" $e }
+# The address is allocated, not assumed: containers share a bridge now, and
+# which one this ends up on decides what the routes and mangle rules point at.
+# mihomo defaults to the bridge because things that want to sit next to it --
+# and talk to it without going through the router -- are the whole reason the
+# bridge exists.
+:global mihomoIP [$mNetAttach cname="MihomoProxyRoS" default="bridge"]
+:if ([:len $mihomoIP] = 0) do={
+    $mSay "  [ !! ] could not attach the container network, stopping here"
+    :error "no container address"
+}
 
 # InAccept marks traffic that must never be re-routed into the proxy: WAN
 # return traffic and the container own egress. Without it the proxy loops.
@@ -62,7 +63,7 @@ $mHdr "MihomoProxyRoS network"
 # selected domains through the proxy resolver and its fake-ip pool.
 :onerror e in={
     :if ([$mNeed id=[/ip/dns/forwarders/find where name="MihomoProxyRoS"] name="forwarder MihomoProxyRoS"]) do={
-        /ip/dns/forwarders/add name=MihomoProxyRoS dns-servers=192.168.255.2 verify-doh-cert=no
+        /ip/dns/forwarders/add name=MihomoProxyRoS dns-servers=$mihomoIP verify-doh-cert=no
         $mOk "forwarder MihomoProxyRoS"
     }
 } do={ $mErr "dns forwarder" $e }
@@ -81,7 +82,7 @@ $mHdr "MihomoProxyRoS network"
 
 :onerror e in={
     :if ([$mNeed id=[/ip/route/find where comment="MihomoProxyRoS0"] name="default route into proxy table"]) do={
-        /ip/route/add dst-address=0.0.0.0/0 gateway=192.168.255.2 routing-table=MihomoProxyRoS comment="MihomoProxyRoS0"
+        /ip/route/add dst-address=0.0.0.0/0 gateway=$mihomoIP routing-table=MihomoProxyRoS comment="MihomoProxyRoS0"
         $mOk "default route into proxy table"
     }
     # The same private blackholes as the main table: a marked packet destined
@@ -95,7 +96,7 @@ $mHdr "MihomoProxyRoS network"
     # fake-ip answers come back in 198.18.0.0/15 and must reach the container
     # from the main table, otherwise clients get an address that routes nowhere.
     :if ([$mNeed id=[/ip/route/find where comment="MihomoProxyRoS1"] name="route 198.18.0.0/15 (fake-ip)"]) do={
-        /ip/route/add dst-address=198.18.0.0/15 gateway=192.168.255.2 comment="MihomoProxyRoS1"
+        /ip/route/add dst-address=198.18.0.0/15 gateway=$mihomoIP comment="MihomoProxyRoS1"
         $mOk "route 198.18.0.0/15 (fake-ip)"
     }
 } do={ $mErr "routes" $e }

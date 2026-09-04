@@ -9,8 +9,8 @@
 #   official image registry-1.docker.io/library/alpine
 # Only the projects own images live on ghcr.io.
 #
-# Link network 192.168.255.12/30 -- .13 is the router, .14 is the container.
-# The /30 at 192.168.255.4 is intentionally left free for the next container.
+# The address is allocated at install time, not fixed: see $mNetAttach in
+# lib.rsc for the bridge and the standalone ranges.
 #
 # Two mounts are mandatory: without them the configuration and the query log
 # live inside the container layer and vanish on every repull.
@@ -22,6 +22,7 @@
 :global mErr
 :global mContState
 :global mStateGet
+:global mNetAttach
 :global mRepull
 :global mStateSet
 :global mRun
@@ -37,15 +38,15 @@ $mHdr "AdGuard Home"
 
 :local rootDir ([$mStateGet "path"] . "Containers/AdGuardHome")
 
+# Standalone by default, like DNSProxy: it is a resolver, not a neighbour of
+# the proxy.
+:global agIP [$mNetAttach cname="AdGuardHome" default="standalone"]
+:if ([:len $agIP] = 0) do={
+    $mSay "  [ !! ] could not attach the container network, stopping here"
+    :error "no container address"
+}
+
 :onerror e in={
-    :if ([$mNeed id=[/interface/veth/find where name="AdGuardHome"] name="veth AdGuardHome"]) do={
-        /interface/veth/add name=AdGuardHome address=192.168.255.14/30 gateway=192.168.255.13
-        $mOk "veth AdGuardHome"
-    }
-    :if ([$mNeed id=[/ip/address/find where address="192.168.255.13/30"] name="address 192.168.255.13/30"]) do={
-        /ip/address/add address=192.168.255.13/30 interface=AdGuardHome
-        $mOk "address 192.168.255.13/30"
-    }
     :foreach l in={"InAccept";"Containers"} do={
         :if ([:len [/interface/list/find where name=$l]] = 0) do={
             /interface/list/add name=$l
@@ -57,7 +58,7 @@ $mHdr "AdGuard Home"
         }
     }
     :if ([$mNeed id=[/ip/dns/forwarders/find where name="AdGuardHome"] name="forwarder AdGuardHome"]) do={
-        /ip/dns/forwarders/add name=AdGuardHome dns-servers=192.168.255.14 verify-doh-cert=no
+        /ip/dns/forwarders/add name=AdGuardHome dns-servers=$agIP verify-doh-cert=no
         $mOk "forwarder AdGuardHome"
     }
 } do={ $mErr "adguard network" $e }
@@ -132,14 +133,14 @@ $mRepull name="AdGuardHome" image="registry-1.docker.io/adguard/adguardhome"    
 
 $mSay ""
 $mSay "  Set it up in the browser, there is nothing to do from here:"
-$mSay "    http://192.168.255.14:3000    first run, the setup wizard"
-$mSay "    http://192.168.255.14         afterwards, the normal panel"
+$mSay "    http://" . $agIP . ":3000    first run, the setup wizard"
+$mSay "    http://" . $agIP . "         afterwards, the normal panel"
 $mSay "  Everything -- upstreams, filters, per-client rules -- lives in that UI."
 
 # Offering the resolver role is one shared decision, made in 45-resolver so the
 # rules and the watchdog exist in exactly one place. Declining is fine and
 # leaves /ip dns untouched.
 :global mResolverCandidate "AdGuardHome"
-:global mResolverAddr "192.168.255.14"
+:global mResolverAddr $agIP
 $mRun "modules/45-resolver.rsc"
 }

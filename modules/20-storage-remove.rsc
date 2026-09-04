@@ -55,6 +55,22 @@ $mHdr "Remove container storage"
             }
         } do={ $mErr "ram disks" $e }
 
+        # The bridge belongs to whichever containers are on it, so it goes only
+        # when the last one has left.
+        :global mBridgeName
+        :global mBridgeCIDR
+        :onerror e in={
+            :if ([:len [/interface/bridge/find where name=$mBridgeName]] > 0) do={
+                :if ([:len [/interface/bridge/port/find where bridge=$mBridgeName]] = 0) do={
+                    /ip/address/remove [find where address=$mBridgeCIDR]
+                    /interface/bridge/remove [find where name=$mBridgeName]
+                    $mOk ("bridge " . $mBridgeName . " removed, nothing was left on it")
+                } else={
+                    $mSkip ("bridge " . $mBridgeName . " kept, containers are still attached")
+                }
+            }
+        } do={ $mErr "bridge" $e }
+
         $mStateSet key="slot" value=""
         $mStateSet key="path" value=""
         $mStateSet key="fs" value=""

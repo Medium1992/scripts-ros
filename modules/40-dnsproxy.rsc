@@ -7,8 +7,8 @@
 # $dnsproxy flag behind. The image, the command line and the link network below
 # are exactly what that version used.
 #
-# Link network 192.168.255.8/30 -- .9 is the router, .10 is the container.
-# It sits next to the MihomoProxyRoS /30 at 192.168.255.0/30.
+# The address is allocated at install time, not fixed: see $mNetAttach in
+# lib.rsc for the bridge and the standalone ranges.
 #
 # The container queries three upstreams in parallel and answers from whichever
 # replies first, which is why it is worth having in front of a proxy: a slow or
@@ -23,6 +23,7 @@
 :global mFetch
 :global mContState
 :global mStateGet
+:global mNetAttach
 :global mRepull
 :global mStateSet
 :global mRun
@@ -37,15 +38,16 @@ $mHdr "DNSProxy"
 :local rootDir ([$mStateGet "path"] . "Containers/DNSProxy")
 
 # ------------------------------------------------------------------ network
+# Standalone by default: a resolver has no reason to share a broadcast domain
+# with the proxy, and keeping it on its own /30 means nothing else can reach it
+# except through the router, where the rules are.
+:global dnsIP [$mNetAttach cname="DNSProxy" default="standalone"]
+:if ([:len $dnsIP] = 0) do={
+    $mSay "  [ !! ] could not attach the container network, stopping here"
+    :error "no container address"
+}
+
 :onerror e in={
-    :if ([$mNeed id=[/interface/veth/find where name="DNSProxy"] name="veth DNSProxy"]) do={
-        /interface/veth/add name=DNSProxy address=192.168.255.10/30 gateway=192.168.255.9
-        $mOk "veth DNSProxy"
-    }
-    :if ([$mNeed id=[/ip/address/find where address="192.168.255.9/30"] name="address 192.168.255.9/30"]) do={
-        /ip/address/add address=192.168.255.9/30 interface=DNSProxy
-        $mOk "address 192.168.255.9/30"
-    }
     :foreach l in={"InAccept";"Containers"} do={
         :if ([:len [/interface/list/find where name=$l]] = 0) do={
             /interface/list/add name=$l
@@ -55,10 +57,6 @@ $mHdr "DNSProxy"
             /interface/list/member/add interface=DNSProxy list=$l
             $mOk ("member DNSProxy in " . $l)
         }
-    }
-    :if ([$mNeed id=[/ip/dns/forwarders/find where name="DNSProxy"] name="forwarder DNSProxy"]) do={
-        /ip/dns/forwarders/add name=DNSProxy dns-servers=192.168.255.10 verify-doh-cert=no
-        $mOk "forwarder DNSProxy"
     }
 } do={ $mErr "dnsproxy network" $e }
 
@@ -128,6 +126,6 @@ $mSay "  then restart the container. Options: github.com/AdguardTeam/dnsproxy"
 # rules and the watchdog exist in exactly one place. Declining is fine and
 # leaves /ip dns untouched.
 :global mResolverCandidate "DNSProxy"
-:global mResolverAddr "192.168.255.10"
+:global mResolverAddr $dnsIP
 $mRun "modules/45-resolver.rsc"
 }
