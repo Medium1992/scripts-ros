@@ -117,6 +117,13 @@ $mRepull name="DNSProxy" image="ghcr.io/medium1992/dns-proxy-ros" iface="DNSProx
     $mSay "  [ !! ] DNSProxy did not reach running state within 600s"
 }
 
+$mSay ""
+$mSay "  DNSProxy has no web interface: it is configured entirely by its"
+$mSay "  command line, which this module set to three parallel DoH upstreams."
+$mSay "  To change them:"
+$mSay "    /container/set [find where comment=DNSProxy] cmd=..."
+$mSay "  then restart the container. Options: github.com/AdguardTeam/dnsproxy"
+
 # Offering the resolver role is one shared decision, made in 45-resolver so the
 # rules and the watchdog exist in exactly one place. Declining is fine and
 # leaves /ip dns untouched.

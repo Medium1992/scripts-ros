@@ -56,14 +56,14 @@
 }
 
 :local loaded 0
-:local missing 0
+:local missing [:toarray ""]
 :foreach set in=$rosSets do={
     :local base ($set->"base")
     :foreach item in=($set->"items") do={
         :if ([$pull url=($base . "/" . $item . ".rsc")]) do={
             :set loaded ($loaded + 1)
         } else={
-            :set missing ($missing + 1)
+            :set missing ($missing, $item)
         }
         :local part 1
         :local more true
@@ -78,5 +78,23 @@
     }
 }
 
-:log warning ("sros engine (" . $rosList . "): " . $loaded . " fragment(s) loaded, " . $missing . " unavailable")
-:put ("sros engine (" . $rosList . "): " . $loaded . " fragment(s) loaded, " . $missing . " unavailable")
+# No tagging happens here, deliberately. The upstream fragments already comment
+# every entry they create with the name of the fragment -- "category-gov-ru",
+# "telegram", "deepl" -- which is precisely what tells them apart from an entry
+# someone added by hand, and those carry no comment at all. Stamping the
+# comment-less ones would therefore claim the operator's own records, which is
+# the bug this is meant to avoid: removal reads the companion list instead.
+
+:local summary ("sros engine (" . $rosList . "): " . $loaded . " fragment(s) loaded")
+:if ([:len $missing] > 0) do={
+    # Naming the ones that are not there beats a bare count: a fragment can be
+    # missing because it was renamed upstream, or because it never existed and
+    # the companion list has a typo in it. Both are worth seeing.
+    :local names ""
+    :foreach m in=$missing do={
+        :if ([:len $names] = 0) do={ :set names $m } else={ :set names ($names . ", " . $m) }
+    }
+    :set summary ($summary . "; not published upstream: " . $names)
+}
+:log warning $summary
+:put $summary
