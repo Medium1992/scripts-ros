@@ -30,6 +30,7 @@
 :global mRun
 :global mAsk
 :global mStateGet
+:global mNetAddr
 :global mStateSet
 
 $mHdr "MihomoProxyRoS"
@@ -82,7 +83,12 @@ $mSay ""
 } else={
     $mSay ("  MihomoProxyRoS finished with " . $failed . " failed module(s), see above")
 }
-$mSay "  web panel: http://192.168.255.2:9090/ui/"
+:local mhIP [$mNetAddr "MihomoProxyRoS"]
+:if ([:len $mhIP] > 0) do={
+    $mSay ("  web panel: http://" . $mhIP . ":9090/ui/")
+} else={
+    $mSay "  web panel: on the container address, port 9090, path /ui/"
+}
 $mSay "  WG/AWG configs go to /awg_conf/ on the router"
 :if ($mode = "container") do={
     $mSay ""

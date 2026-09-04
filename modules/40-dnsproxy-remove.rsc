@@ -62,10 +62,23 @@ $mHdr "Remove DNSProxy"
     :local fwd [/ip/dns/static/find where forward-to="DNSProxy"]
     :if ([:len $fwd] > 0) do={ /ip/dns/static/remove $fwd }
     /ip/dns/forwarders/remove [find where name="DNSProxy"]
-    /ip/address/remove [find where address="192.168.255.9/30"]
+    # Give back whatever this container was allocated: a router-side address if
+    # it was standalone, a bridge port if it was on the bridge.
+    :global mStateGet
+    :global mStateSet
+    :local gw [$mStateGet ("netgw_DNSProxy")]
+    :if ([:len $gw] > 0) do={
+        :local addr [/ip/address/find where address=($gw . "/30")]
+        :if ([:len $addr] > 0) do={ /ip/address/remove $addr }
+    }
+    :local port [/interface/bridge/port/find where interface="DNSProxy"]
+    :if ([:len $port] > 0) do={ /interface/bridge/port/remove $port }
     /interface/list/member/remove [find where interface="DNSProxy"]
     /interface/veth/remove [find where name="DNSProxy"]
-    $mOk "forwarder, veth and address removed"
+    $mStateSet key="netaddr_DNSProxy" value=""
+    $mStateSet key="netgw_DNSProxy" value=""
+    $mStateSet key="netmode_DNSProxy" value=""
+    $mOk "forwarder, veth, bridge port and address removed"
 } do={ $mErr "network" $e }
 
 }
