@@ -60,15 +60,21 @@ def check(cli, files):
 
     A local linter cannot know RouterOS-only rules -- empty {} is a syntax
     error, line continuations must not carry trailing spaces -- so validation
-    happens on the device, parsing without executing.
+    happens on the device, without executing.
+
+    :parse alone checks nothing: it returns code for any text, and RouterOS
+    validates a script only when it starts (an unknown command or a bad value
+    rejects all of it before the first line runs). So each file is started
+    with an :error in front: a good file stops on that line, a broken one
+    fails with its own error, and nothing in it runs either way.
     """
     lines = []
     for f in files:
         remote = "p_" + pathlib.Path(f).name
         push(cli, f, remote)
         lines.append(
-            ':onerror e in={ :local fn [:parse [/file/get [find where name="%s"] contents]] ;'
-            ' :put "  OK    %s" } do={ :put ("  FAIL  %s : " . $e) }' % (remote, f, f))
+            ':onerror e in={ :local fn [:parse (":error \\"CHECKOK\\"\\n" . [/file/get [find where name="%s"] contents])] ; $fn }'
+            ' do={ :if ($e ~ "^CHECKOK") do={ :put "  OK    %s" } else={ :put ("  FAIL  %s : " . $e) } }' % (remote, f, f))
     run_cmd(cli, "\n".join(lines))
     run_cmd(cli, '/file/remove [find where name~"^p_"]')
 
