@@ -55,21 +55,23 @@
 :if ($caCount > 0) do={ :set baseDetail ($baseDetail . ", " . $caCount . " roots") }
 
 # ---------------------------------------------------------------- 2. storage
-:local slot [$mStateGet "slot"]
+:local stSlot [$mStateGet "slot"]
 :local storHave 0
 :local storDetail "no slot chosen"
-:if ([:len $slot] > 0) do={
+:if ([:len $stSlot] > 0) do={
     :set storHave 2
-    :if ($slot = "system") do={
+    :if ($stSlot = "system") do={
         :set storDetail ("system, " . ([/system/resource/get free-hdd-space] / 1048576) . " MiB free")
     } else={
-        :local d [/disk/find where slot=$slot]
+        # not $slot: inside find where, a variable named like a property reads the
+        # property of each item, so slot=$slot matches every disk
+        :local d [/disk/find where slot=$stSlot]
         :if ([:len $d] = 0) do={
             :set storHave 1
-            :set storDetail ($slot . " MISSING")
+            :set storDetail ($stSlot . " MISSING")
         } else={
             :local fs [/disk/get $d fs]
-            :set storDetail ($slot . " " . $fs . ", " . ([/disk/get $d free] / 1048576) . " MiB free")
+            :set storDetail ($stSlot . " " . $fs . ", " . ([/disk/get $d free] / 1048576) . " MiB free")
             :if ($fs = "tmpfs") do={
                 :local jobs [:len [/system/scheduler/find where comment="sros:repull"]]
                 :local conts [:len [/container/find]]

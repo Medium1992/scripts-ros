@@ -27,6 +27,8 @@ $mHdr "Network base"
 # which one looks like the answer, and take a number.
 :global mPickIfaces do={
     :global mSay
+    # $list cannot go into find where list=: it would read each member own list
+    :local lname $list
     :global mPad
     :local names [:toarray ""]
     :local hints [:toarray ""]
@@ -41,7 +43,7 @@ $mHdr "Network base"
         :if ($t = "loopback") do={ :set skip true }
         :if ([:len [/interface/bridge/port/find where interface=$n]] > 0) do={ :set skip true }
         :if ([:len [/interface/veth/find where name=$n]] > 0) do={ :set skip true }
-        :if ([:len [/interface/list/member/find where list=$list and interface=$n]] > 0) do={ :set skip true }
+        :if ([:len [/interface/list/member/find where list=$lname and interface=$n]] > 0) do={ :set skip true }
         :if ($skip = false) do={
             :local h [/interface/get $i type]
             :if ([/interface/get $i running] = true) do={ :set h ($h . ", running") } else={ :set h ($h . ", down") }

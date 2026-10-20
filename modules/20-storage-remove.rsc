@@ -46,11 +46,13 @@ $mHdr "Remove container storage"
         # Only slots this tool creates. A tmpfs the operator made themselves
         # has a different name and is left alone.
         :onerror e in={
-            :foreach slot in={"ContainerTemp";"ContainerRAM"} do={
-                :local d [/disk/find where slot=$slot]
+            # not $slot: inside find where it would read each disk own slot
+            # and match, and remove, every disk on the router
+            :foreach rd in={"ContainerTemp";"ContainerRAM"} do={
+                :local d [/disk/find where slot=$rd]
                 :if ([:len $d] > 0) do={
                     /disk/remove $d
-                    $mOk ("RAM disk " . $slot . " removed")
+                    $mOk ("RAM disk " . $rd . " removed")
                 }
             }
         } do={ $mErr "ram disks" $e }
